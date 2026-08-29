@@ -1,0 +1,12 @@
+.DS_Store
+.build
+DerivedData
+outputs/
+work/
+work/DerivedData
+work/DerivedDataSim
+work/DerivedDataDevice
+xcuserdata
+*.xcuserstate
+*.moved-aside
+*.swp

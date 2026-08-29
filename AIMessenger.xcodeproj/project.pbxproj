@@ -1,0 +1,444 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B10000010000000000000001 /* AIMessengerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000001 /* AIMessengerApp.swift */; };
+		B10000010000000000000002 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000002 /* RootView.swift */; };
+		B10000010000000000000003 /* TelegramTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000003 /* TelegramTheme.swift */; };
+		B10000010000000000000004 /* ChatModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000004 /* ChatModels.swift */; };
+		B10000010000000000000005 /* ChatsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000005 /* ChatsScreen.swift */; };
+		B10000010000000000000006 /* AppTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000006 /* AppTabBar.swift */; };
+		B10000010000000000000007 /* PlaceholderScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000007 /* PlaceholderScreen.swift */; };
+		B10000010000000000000008 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000008 /* SettingsScreen.swift */; };
+		B10000010000000000000009 /* AuthorizationScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000009 /* AuthorizationScreen.swift */; };
+		B1000001000000000000000A /* ContactsFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000000B /* ContactsFlow.swift */; };
+		B1000001000000000000000B /* CallsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000000C /* CallsScreen.swift */; };
+		B1000001000000000000000C /* ChatConversationScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000000D /* ChatConversationScreen.swift */; };
+		B1000001000000000000000D /* SettingsHubScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000000E /* SettingsHubScreen.swift */; };
+		B1000001000000000000000E /* SettingsDetailScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000000F /* SettingsDetailScreens.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		B20000010000000000000001 /* AIMessengerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIMessengerApp.swift; sourceTree = "<group>"; };
+		B20000010000000000000002 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		B20000010000000000000003 /* TelegramTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelegramTheme.swift; sourceTree = "<group>"; };
+		B20000010000000000000004 /* ChatModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatModels.swift; sourceTree = "<group>"; };
+		B20000010000000000000005 /* ChatsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatsScreen.swift; sourceTree = "<group>"; };
+		B20000010000000000000006 /* AppTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTabBar.swift; sourceTree = "<group>"; };
+		B20000010000000000000007 /* PlaceholderScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceholderScreen.swift; sourceTree = "<group>"; };
+		B20000010000000000000008 /* SettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScreen.swift; sourceTree = "<group>"; };
+		B20000010000000000000009 /* AuthorizationScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthorizationScreen.swift; sourceTree = "<group>"; };
+		B2000001000000000000000A /* AIMessenger.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AIMessenger.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B2000001000000000000000B /* ContactsFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactsFlow.swift; sourceTree = "<group>"; };
+		B2000001000000000000000C /* CallsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallsScreen.swift; sourceTree = "<group>"; };
+		B2000001000000000000000D /* ChatConversationScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatConversationScreen.swift; sourceTree = "<group>"; };
+		B2000001000000000000000E /* SettingsHubScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsHubScreen.swift; sourceTree = "<group>"; };
+		B2000001000000000000000F /* SettingsDetailScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDetailScreens.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		B30000010000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		B40000010000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				B40000010000000000000002 /* AIMessenger */,
+				B40000010000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		B40000010000000000000002 /* AIMessenger */ = {
+			isa = PBXGroup;
+			children = (
+				B40000010000000000000004 /* App */,
+				B40000010000000000000005 /* Models */,
+				B40000010000000000000006 /* Features */,
+				B40000010000000000000007 /* Resources */,
+			);
+			path = AIMessenger;
+			sourceTree = "<group>";
+		};
+		B40000010000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B2000001000000000000000A /* AIMessenger.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		B40000010000000000000004 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B20000010000000000000001 /* AIMessengerApp.swift */,
+				B20000010000000000000002 /* RootView.swift */,
+				B20000010000000000000003 /* TelegramTheme.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		B40000010000000000000005 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				B20000010000000000000004 /* ChatModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		B40000010000000000000006 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				B4000001000000000000000B /* Auth */,
+				B4000001000000000000000C /* Contacts */,
+				B4000001000000000000000D /* Calls */,
+				B40000010000000000000008 /* Chats */,
+				B40000010000000000000009 /* Shared */,
+				B4000001000000000000000A /* Settings */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		B40000010000000000000007 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		B40000010000000000000008 /* Chats */ = {
+			isa = PBXGroup;
+			children = (
+				B2000001000000000000000D /* ChatConversationScreen.swift */,
+				B20000010000000000000005 /* ChatsScreen.swift */,
+			);
+			path = Chats;
+			sourceTree = "<group>";
+		};
+		B40000010000000000000009 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				B20000010000000000000006 /* AppTabBar.swift */,
+				B20000010000000000000007 /* PlaceholderScreen.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		B4000001000000000000000A /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				B2000001000000000000000E /* SettingsHubScreen.swift */,
+				B2000001000000000000000F /* SettingsDetailScreens.swift */,
+				B20000010000000000000008 /* SettingsScreen.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		B4000001000000000000000B /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				B20000010000000000000009 /* AuthorizationScreen.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		B4000001000000000000000C /* Contacts */ = {
+			isa = PBXGroup;
+			children = (
+				B2000001000000000000000B /* ContactsFlow.swift */,
+			);
+			path = Contacts;
+			sourceTree = "<group>";
+		};
+		B4000001000000000000000D /* Calls */ = {
+			isa = PBXGroup;
+			children = (
+				B2000001000000000000000C /* CallsScreen.swift */,
+			);
+			path = Calls;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		B50000010000000000000001 /* AIMessenger */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B80000010000000000000002 /* Build configuration list for PBXNativeTarget "AIMessenger" */;
+			buildPhases = (
+				B30000010000000000000002 /* Sources */,
+				B30000010000000000000001 /* Frameworks */,
+				B30000010000000000000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AIMessenger;
+			packageProductDependencies = (
+			);
+			productName = AIMessenger;
+			productReference = B2000001000000000000000A /* AIMessenger.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		B60000010000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2611;
+				LastUpgradeCheck = 2611;
+				TargetAttributes = {
+					B50000010000000000000001 = {
+						CreatedOnToolsVersion = 26.1.1;
+					};
+				};
+			};
+			buildConfigurationList = B80000010000000000000001 /* Build configuration list for PBXProject "AIMessenger" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = B40000010000000000000001;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = B40000010000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B50000010000000000000001 /* AIMessenger */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		B30000010000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		B30000010000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000010000000000000001 /* AIMessengerApp.swift in Sources */,
+				B10000010000000000000002 /* RootView.swift in Sources */,
+				B10000010000000000000003 /* TelegramTheme.swift in Sources */,
+				B10000010000000000000004 /* ChatModels.swift in Sources */,
+				B10000010000000000000005 /* ChatsScreen.swift in Sources */,
+				B10000010000000000000006 /* AppTabBar.swift in Sources */,
+				B10000010000000000000007 /* PlaceholderScreen.swift in Sources */,
+				B10000010000000000000008 /* SettingsScreen.swift in Sources */,
+				B10000010000000000000009 /* AuthorizationScreen.swift in Sources */,
+				B1000001000000000000000A /* ContactsFlow.swift in Sources */,
+				B1000001000000000000000B /* CallsScreen.swift in Sources */,
+				B1000001000000000000000C /* ChatConversationScreen.swift in Sources */,
+				B1000001000000000000000D /* SettingsHubScreen.swift in Sources */,
+				B1000001000000000000000E /* SettingsDetailScreens.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		B70000010000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = AIMessenger;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.university.AIMessenger;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		B70000010000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = AIMessenger;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.university.AIMessenger;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		B70000010000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		B70000010000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		B80000010000000000000001 /* Build configuration list for PBXProject "AIMessenger" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B70000010000000000000003 /* Debug */,
+				B70000010000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B80000010000000000000002 /* Build configuration list for PBXNativeTarget "AIMessenger" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B70000010000000000000001 /* Debug */,
+				B70000010000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = B60000010000000000000001 /* Project object */;
+}
