@@ -4,14 +4,27 @@ struct ChatConversationScreen: View {
     let thread: ChatThread
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var aiWorkspace: AIWorkspace
     @State private var draft = ""
-    private let messages = ConversationMessage.sampleConversation
+    @State private var messages: [ConversationMessage]
+    @State private var isSending = false
+    @State private var errorText: String?
+    private let openRouterService = OpenRouterService()
+
+    init(thread: ChatThread) {
+        self.thread = thread
+        _messages = State(initialValue: ConversationMessage.bootstrapConversation(for: thread))
+    }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 10) {
                 ForEach(messages) { message in
                     MessageBubble(message: message)
+                }
+
+                if isSending {
+                    TypingBubble()
                 }
             }
             .padding(.horizontal, 10)
@@ -51,9 +64,9 @@ struct ChatConversationScreen: View {
                 Text(thread.title)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(.white)
-                Text("last seen just now")
+                Text(thread.aiProfile.status)
                     .font(.system(size: 13))
-                    .foregroundStyle(TelegramPalette.mutedText)
+                    .foregroundStyle(thread.online ? TelegramPalette.skyBlue : TelegramPalette.mutedText)
             }
 
             Spacer()
@@ -85,6 +98,7 @@ struct ChatConversationScreen: View {
                 TextField("Message", text: $draft)
                     .font(.system(size: 17))
                     .foregroundStyle(.white)
+                    .disabled(isSending)
 
                 Button {
                 } label: {
@@ -98,17 +112,31 @@ struct ChatConversationScreen: View {
             .background(Color.white.opacity(0.08), in: Capsule(style: .continuous))
 
             Button {
-                draft = ""
+                Task {
+                    await sendMessage()
+                }
             } label: {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 34))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(canSend ? .white : Color.white.opacity(0.35))
             }
+            .disabled(canSend == false)
         }
         .padding(.horizontal, 10)
         .padding(.top, 10)
         .padding(.bottom, 14)
         .background(TelegramPalette.backgroundElevated)
+        .overlay(alignment: .top) {
+            if let errorText {
+                Text(errorText)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color(hex: 0xFFB4AE))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Color(hex: 0x521717), in: Capsule(style: .continuous))
+                    .padding(.top, -18)
+            }
+        }
     }
 
     private var chatBackground: some View {
@@ -126,6 +154,88 @@ struct ChatConversationScreen: View {
                     .offset(x: 120, y: 80)
             }
         }
+    }
+
+    private var canSend: Bool {
+        draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false && isSending == false
+    }
+
+    @MainActor
+    private func sendMessage() async {
+        let trimmedDraft = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedDraft.isEmpty == false else { return }
+
+        errorText = nil
+        draft = ""
+        isSending = true
+        let historyBeforeRequest = messages
+
+        let outgoingMessage = ConversationMessage(
+            id: UUID().uuidString,
+            side: .outgoing,
+            payload: .text(trimmedDraft),
+            time: currentTimeLabel
+        )
+        messages.append(outgoingMessage)
+
+        do {
+            let reply: String
+            if aiWorkspace.isConfigured {
+                reply = try await openRouterService.sendMessage(
+                    draft: trimmedDraft,
+                    thread: thread,
+                    history: historyBeforeRequest,
+                    configuration: aiWorkspace.configurationSnapshot
+                )
+            } else {
+                reply = offlineFallbackReply(for: trimmedDraft)
+                errorText = "OpenRouter is not connected yet. This reply uses the built-in offline fallback."
+            }
+
+            messages.append(
+                ConversationMessage(
+                    id: UUID().uuidString,
+                    side: .incoming,
+                    payload: .text(reply),
+                    time: currentTimeLabel
+                )
+            )
+        } catch {
+            errorText = error.localizedDescription
+            messages.append(
+                ConversationMessage(
+                    id: UUID().uuidString,
+                    side: .incoming,
+                    payload: .text(offlineFallbackReply(for: trimmedDraft)),
+                    time: currentTimeLabel
+                )
+            )
+        }
+
+        isSending = false
+    }
+
+    private func offlineFallbackReply(for draft: String) -> String {
+        switch thread.id {
+        case "research-desk":
+            return "Быстро разложу это на 3 части: цель, варианты и критерии выбора. Если хочешь, следующим сообщением сделаю короткое сравнение именно по твоему запросу: \(draft)"
+        case "product-coach":
+            return "Если смотреть как на продуктовый диалог, я бы уточнил у пользователя цель и потом упростил бы сценарий. Могу сразу предложить новый UX-вариант для: \(draft)"
+        case "code-partner":
+            return "Похоже на задачу, где лучше сначала определить входные данные, желаемое поведение и крайние случаи. Если хочешь, я распишу решение по шагам для: \(draft)"
+        case "study-room":
+            return "Давай упростим это до понятного учебного объяснения. Могу разбить тему на шаги, мини-конспект или карточки по запросу: \(draft)"
+        case "design-scout":
+            return "Если это про интерфейс или визуал, я бы сначала посмотрел на иерархию, отступы и главный акцент. Могу сразу дать короткий дизайн-разбор для: \(draft)"
+        default:
+            return "Понял. Могу ответить коротко, подробно или в рабочем тоне этого контакта. Для живых ответов подключи OpenRouter в Settings -> AI Gateway."
+        }
+    }
+
+    private var currentTimeLabel: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: Date())
     }
 }
 
@@ -214,6 +324,35 @@ private struct MessageBubble: View {
 
     private var backgroundColor: Color {
         message.side == .outgoing ? Color(hex: 0x0A84FF) : Color.white
+    }
+}
+
+private struct TypingBubble: View {
+    @State private var phase = 0
+
+    var body: some View {
+        HStack {
+            HStack(spacing: 6) {
+                ForEach(0 ..< 3, id: \.self) { index in
+                    Circle()
+                        .fill(Color.black.opacity(0.42))
+                        .frame(width: 7, height: 7)
+                        .scaleEffect(phase == index ? 1.1 : 0.82)
+                        .animation(.easeInOut(duration: 0.35), value: phase)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+            Spacer(minLength: 40)
+        }
+        .task {
+            while true {
+                try? await Task.sleep(nanoseconds: 280_000_000)
+                phase = (phase + 1) % 3
+            }
+        }
     }
 }
 

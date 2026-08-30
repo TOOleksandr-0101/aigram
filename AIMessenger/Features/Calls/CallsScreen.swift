@@ -36,7 +36,7 @@ struct CallsScreen: View {
 
                 Button {
                 } label: {
-                    Image(systemName: "phone.badge.plus")
+                    Image(systemName: "waveform.badge.plus")
                         .font(.system(size: 18, weight: .medium))
                         .foregroundStyle(.white)
                 }

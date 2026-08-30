@@ -2,6 +2,7 @@ import SwiftUI
 
 struct EditProfileScreen: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var aiWorkspace: AIWorkspace
 
     @State private var showPhotoSheet = false
 
@@ -15,8 +16,6 @@ struct EditProfileScreen: View {
                         profileCard
                         bioSection
                         infoRows
-                        actionButton(title: "Add Account", color: TelegramPalette.accentBlue)
-                        actionButton(title: "Log Out", color: Color(hex: 0xFE3B30))
                     }
                     .padding(.bottom, 32)
                 }
@@ -58,7 +57,7 @@ struct EditProfileScreen: View {
 
             Spacer()
 
-            Text("Edit Profile")
+            Text("Profile")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(.black)
 
@@ -99,35 +98,33 @@ struct EditProfileScreen: View {
                         Circle()
                             .fill(Color.black.opacity(0.28))
 
-                        Image(systemName: "camera.fill")
-                            .font(.system(size: 22, weight: .bold))
+                        Text(aiWorkspace.initials)
+                            .font(.system(size: 24, weight: .bold))
                             .foregroundStyle(.white)
-                            .padding(8)
-                            .background(Color.black.opacity(0.35), in: Circle())
                     }
                     .frame(width: 66, height: 66)
                 }
                 .buttonStyle(.plain)
 
-                VStack(alignment: .leading, spacing: 18) {
-                    Text("Jacob W.")
+                VStack(spacing: 16) {
+                    TextField("Display name", text: $aiWorkspace.displayName)
                         .font(.system(size: 17))
-                        .foregroundStyle(.black)
 
                     Rectangle()
                         .fill(TelegramPalette.lightSeparator)
                         .frame(height: 0.5)
 
-                    Text("Last Name")
+                    TextField("Username", text: $aiWorkspace.username)
                         .font(.system(size: 17))
-                        .foregroundStyle(Color(hex: 0xC7C7CC))
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
                 }
             }
             .padding(.horizontal, 15)
             .frame(height: 92)
             .background(Color.white)
 
-            Text("Enter your name and add an optional profile photo.")
+            Text("Choose how your workspace appears across chats, calls, and contacts.")
                 .font(.system(size: 14))
                 .foregroundStyle(Color(hex: 0x636366))
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -138,12 +135,12 @@ struct EditProfileScreen: View {
 
     private var bioSection: some View {
         VStack(spacing: 0) {
-            Text("Digital goodies designer - Pixsellz")
+            TextField("About", text: $aiWorkspace.bio, axis: .vertical)
                 .font(.system(size: 17))
                 .foregroundStyle(.black)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16)
-                .frame(height: 44)
+                .padding(.vertical, 12)
                 .background(Color.white)
                 .overlay(alignment: .top) {
                     Rectangle()
@@ -156,7 +153,7 @@ struct EditProfileScreen: View {
                         .frame(height: 0.5)
                 }
 
-            Text("Any details such as age, occupation or city.\nExample: 23 y.o. designer from San Francisco.")
+            Text("Describe what this space is for. Example: private hub for coding, research, and study assistants.")
                 .font(.system(size: 14))
                 .foregroundStyle(Color(hex: 0x636366))
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -167,8 +164,9 @@ struct EditProfileScreen: View {
 
     private var infoRows: some View {
         VStack(spacing: 0) {
-            settingsRow(title: "Change Number", value: "+1 202 555 0147")
-            settingsRow(title: "Username", value: "@jacob_designer", showSeparator: false)
+            settingsRow(title: "Model", value: aiWorkspace.modelDisplayName)
+            settingsRow(title: "Provider", value: aiWorkspace.isConfigured ? "OpenRouter" : "Offline fallback")
+            settingsRow(title: "Privacy", value: aiWorkspace.useZeroRetention ? "Zero retention" : "Standard", showSeparator: false)
         }
         .background(Color.white)
         .overlay {
@@ -206,39 +204,20 @@ struct EditProfileScreen: View {
         }
     }
 
-    private func actionButton(title: String, color: Color) -> some View {
-        Button {
-        } label: {
-            Text(title)
-                .font(.system(size: 17))
-                .foregroundStyle(color)
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
-                .background(Color.white)
-        }
-        .buttonStyle(.plain)
-        .overlay {
-            RoundedRectangle(cornerRadius: 0)
-                .stroke(TelegramPalette.lightSeparator, lineWidth: 0.5)
-        }
-    }
-
     private var photoActionSheet: some View {
         VStack(spacing: 8) {
             VStack(spacing: 0) {
                 HStack(spacing: 8) {
                     photoPreview(colors: [Color(hex: 0xFFB347), Color(hex: 0xFF6E4A)], symbol: "camera.fill")
                     photoPreview(colors: [Color(hex: 0x5A2D1F), Color(hex: 0xD68B72)], symbol: "person.fill")
-                    photoPreview(colors: [Color(hex: 0x3C322A), Color(hex: 0xA18D72)], symbol: "door.left.hand.open")
-                    photoPreview(colors: [Color(hex: 0x6B7A89), Color(hex: 0xC4CED7)], symbol: "mountain.2.fill")
+                    photoPreview(colors: [Color(hex: 0x3C322A), Color(hex: 0xA18D72)], symbol: "sparkles")
+                    photoPreview(colors: [Color(hex: 0x6B7A89), Color(hex: 0xC4CED7)], symbol: "moon.stars.fill")
                 }
                 .padding(.horizontal, 8)
                 .padding(.top, 8)
                 .padding(.bottom, 8)
 
                 sheetOption("Choose Photo", color: TelegramPalette.accentBlue)
-                sheetDivider
-                sheetOption("Web Search", color: TelegramPalette.accentBlue)
                 sheetDivider
                 sheetOption("View Photo", color: TelegramPalette.accentBlue)
                 sheetDivider
@@ -270,9 +249,7 @@ struct EditProfileScreen: View {
 
     private func sheetOption(_ title: String, color: Color) -> some View {
         Button {
-            if title == "Choose Photo" {
-                showPhotoSheet = false
-            }
+            showPhotoSheet = false
         } label: {
             Text(title)
                 .font(.system(size: 20))
@@ -300,5 +277,6 @@ struct EditProfileScreen: View {
 struct EditProfileScreen_Previews: PreviewProvider {
     static var previews: some View {
         EditProfileScreen()
+            .environmentObject(AIWorkspace())
     }
 }

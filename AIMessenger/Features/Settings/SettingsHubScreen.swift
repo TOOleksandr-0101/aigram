@@ -4,13 +4,15 @@ struct SettingsHubScreen: View {
     let onOpenRoute: (SettingsRoute) -> Void
     let onSwitchTab: (AppTab) -> Void
 
+    @EnvironmentObject private var aiWorkspace: AIWorkspace
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 18) {
                 topBar
                 profileHero
                 quickActions
-                librarySection
+                workspaceSection
                 preferencesSection
             }
             .padding(.horizontal, 14)
@@ -49,9 +51,11 @@ struct SettingsHubScreen: View {
     private var topBar: some View {
         VStack(spacing: 14) {
             HStack {
-                Button("Edit") { }
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(TelegramPalette.accentBlue)
+                Button("Edit") {
+                    onOpenRoute(.editProfile)
+                }
+                .font(.system(size: 17, weight: .medium))
+                .foregroundStyle(TelegramPalette.accentBlue)
 
                 Spacer()
 
@@ -78,7 +82,7 @@ struct SettingsHubScreen: View {
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(TelegramPalette.settingsSecondaryText)
 
-                Text("Search AI spaces, bots, actions")
+                Text("Search")
                     .font(.system(size: 17))
                     .foregroundStyle(TelegramPalette.settingsSecondaryText)
 
@@ -121,31 +125,31 @@ struct SettingsHubScreen: View {
                                 .stroke(Color.white.opacity(0.82), lineWidth: 2)
                                 .padding(4)
 
-                            Text("JW")
+                            Text(aiWorkspace.initials)
                                 .font(.system(size: 28, weight: .bold))
                                 .foregroundStyle(.white)
                         }
                         .frame(width: 78, height: 78)
 
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Jacob W.")
+                            Text(aiWorkspace.displayName)
                                 .font(.system(size: 30, weight: .bold))
                                 .foregroundStyle(TelegramPalette.settingsPrimaryText)
 
-                            Text("AI Workspace Lead")
+                            Text(aiWorkspace.connectionLabel)
                                 .font(.system(size: 15, weight: .semibold))
                                 .foregroundStyle(TelegramPalette.accentBlue)
 
-                            Text("+1 202 555 0147  •  @jacob_d")
+                            Text("\(aiWorkspace.username)  •  \(aiWorkspace.modelDisplayName)")
                                 .font(.system(size: 15))
                                 .foregroundStyle(TelegramPalette.settingsSecondaryText)
                         }
                     }
 
                     HStack(spacing: 10) {
-                        statPill(title: "4", subtitle: "agents")
-                        statPill(title: "12", subtitle: "threads")
-                        statPill(title: "Pro", subtitle: "mode")
+                        statPill(title: "7", subtitle: "agents")
+                        statPill(title: "24", subtitle: "chats")
+                        statPill(title: aiWorkspace.isConfigured ? "Live" : "Local", subtitle: "mode")
                     }
                 }
                 .padding(22)
@@ -170,29 +174,33 @@ struct SettingsHubScreen: View {
 
     private var quickActions: some View {
         HStack(spacing: 12) {
-            actionCard(title: "Saved", subtitle: "Prompts", symbol: "bookmark.fill", colors: [Color(hex: 0x66C4FF), Color(hex: 0x2D87FF)]) {
+            actionCard(title: "Saved", subtitle: "Chats", symbol: "bookmark.fill", colors: [Color(hex: 0x66C4FF), Color(hex: 0x2D87FF)]) {
                 onSwitchTab(.chats)
             }
-            actionCard(title: "Recent", subtitle: "Calls", symbol: "phone.fill", colors: [Color(hex: 0x7CBAFF), Color(hex: 0x5A6CFF)]) {
+            actionCard(title: "Voice", subtitle: "Calls", symbol: "phone.fill", colors: [Color(hex: 0x7CBAFF), Color(hex: 0x5A6CFF)]) {
                 onSwitchTab(.calls)
             }
-            actionCard(title: "Add", subtitle: "Account", symbol: "plus", colors: [Color(hex: 0xFFBF78), Color(hex: 0xFF7B70)]) { }
+            actionCard(title: "Agents", subtitle: "Library", symbol: "sparkles", colors: [Color(hex: 0xFFBF78), Color(hex: 0xFF7B70)]) {
+                onSwitchTab(.contacts)
+            }
         }
     }
 
-    private var librarySection: some View {
+    private var workspaceSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             sectionLabel("Workspace")
 
             SettingsGlassCard {
-                modernRow(title: "Jacob Design", subtitle: "Primary AI identity", symbol: "person.crop.square.fill", colors: [Color(hex: 0x7187FF), Color(hex: 0x8F71FF)])
-                cardDivider
-                modernRow(title: "Saved Messages", subtitle: "Pinned prompts and files", symbol: "bookmark.fill", colors: [Color(hex: 0x4DB7FF), Color(hex: 0x2B8CFF)]) {
-                    onSwitchTab(.chats)
+                modernRow(title: "Profile", subtitle: "Name, handle and bio", symbol: "person.crop.square.fill", colors: [Color(hex: 0x7187FF), Color(hex: 0x8F71FF)]) {
+                    onOpenRoute(.editProfile)
                 }
                 cardDivider
-                modernRow(title: "Stickers", subtitle: "15 installed sets", symbol: "face.smiling.fill", colors: [Color(hex: 0xFFBF70), Color(hex: 0xFF8E54)], trailingBadge: "15") {
-                    onOpenRoute(.stickers)
+                modernRow(title: "Agent Library", subtitle: "Browse your AI contacts", symbol: "square.grid.2x2.fill", colors: [Color(hex: 0x4DB7FF), Color(hex: 0x2B8CFF)]) {
+                    onSwitchTab(.contacts)
+                }
+                cardDivider
+                modernRow(title: "Saved Messages", subtitle: "Pinned notes and long-term context", symbol: "bookmark.fill", colors: [Color(hex: 0x52C2B9), Color(hex: 0x2A9D8F)]) {
+                    onSwitchTab(.chats)
                 }
             }
         }
@@ -203,19 +211,23 @@ struct SettingsHubScreen: View {
             sectionLabel("Preferences")
 
             SettingsGlassCard {
-                modernRow(title: "Notifications", subtitle: "Priority alerts and sounds", symbol: "bell.badge.fill", colors: [Color(hex: 0xFF8F85), Color(hex: 0xFF6363)]) {
+                modernRow(title: "Notifications", subtitle: "Alerts, previews and sounds", symbol: "bell.badge.fill", colors: [Color(hex: 0xFF8F85), Color(hex: 0xFF6363)]) {
                     onOpenRoute(.notifications)
                 }
                 cardDivider
-                modernRow(title: "Privacy & Security", subtitle: "Sessions, passcode, visibility", symbol: "lock.shield.fill", colors: [Color(hex: 0x68D2B0), Color(hex: 0x1AA083)]) {
+                modernRow(title: "AI Gateway", subtitle: "OpenRouter, model and privacy", symbol: "brain.head.profile", colors: [Color(hex: 0x5DB8FF), Color(hex: 0x6B66FF)]) {
+                    onOpenRoute(.aiSetup)
+                }
+                cardDivider
+                modernRow(title: "Privacy & Security", subtitle: "Visibility, passcode and sessions", symbol: "lock.shield.fill", colors: [Color(hex: 0x68D2B0), Color(hex: 0x1AA083)]) {
                     onOpenRoute(.privacySecurity)
                 }
                 cardDivider
-                modernRow(title: "Data & Storage", subtitle: "Media, network and cache", symbol: "externaldrive.fill", colors: [Color(hex: 0x7BC2FF), Color(hex: 0x4B92FF)]) {
+                modernRow(title: "Data & Storage", subtitle: "Downloads, cache and network", symbol: "externaldrive.fill", colors: [Color(hex: 0x7BC2FF), Color(hex: 0x4B92FF)]) {
                     onOpenRoute(.dataStorage)
                 }
                 cardDivider
-                modernRow(title: "Appearance", subtitle: "Theme, type size, app icon", symbol: "paintpalette.fill", colors: [Color(hex: 0x9E8BFF), Color(hex: 0x6C63FF)]) {
+                modernRow(title: "Appearance", subtitle: "Theme, text size and icon", symbol: "paintpalette.fill", colors: [Color(hex: 0x9E8BFF), Color(hex: 0x6C63FF)]) {
                     onOpenRoute(.appearance)
                 }
             }
@@ -380,5 +392,6 @@ private struct SettingsGlassCard<Content: View>: View {
 struct SettingsHubScreen_Previews: PreviewProvider {
     static var previews: some View {
         SettingsHubScreen(onOpenRoute: { _ in }, onSwitchTab: { _ in })
+            .environmentObject(AIWorkspace())
     }
 }

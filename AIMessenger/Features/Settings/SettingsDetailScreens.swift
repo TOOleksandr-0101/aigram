@@ -68,34 +68,34 @@ struct PrivacySecurityScreen: View {
             VStack(spacing: 22) {
                 lightGroup {
                     sectionTitle("Privacy")
-                    chevronRow("Phone Number", value: "My Contacts")
+                    chevronRow("Profile Visibility", value: "Contacts Only")
                     divider
-                    chevronRow("Last Seen & Online", value: "Nobody (+14)")
+                    chevronRow("Last Seen & Activity", value: "Nobody (+14)")
                     divider
                     chevronRow("Profile Photo", value: "Everybody")
                     divider
-                    chevronRow("Voice Calls", value: "Nobody (+7)")
+                    chevronRow("Voice Sessions", value: "Nobody (+7)")
                     divider
                     chevronRow("Forwarded Messages", value: "Everybody")
                     divider
-                    chevronRow("Groups & Channels", value: "Everybody")
-                    footerNote("Change who can add you to groups and channels.")
+                    chevronRow("Agent Invites", value: "Everybody")
+                    footerNote("Choose who can discover your profile and start new AI conversations.")
                 }
 
                 lightGroup {
-                    sectionTitle("Automatically delete my account")
+                    sectionTitle("Inactive workspace cleanup")
                     chevronRow("If Away For", value: "6 months")
-                    footerNote("If you do not come online at least once within this period, your account will be deleted along with all messages and contacts.")
+                    footerNote("If this device stays inactive for long enough, local sessions and cached messages can be cleared automatically.")
                 }
 
                 lightGroup {
-                    chevronRow("Blocked Users", value: "2")
+                    chevronRow("Blocked Agents", value: "2")
                     divider
-                    chevronRow("Active Sessions", value: "Off")
+                    chevronRow("Active Sessions", value: "1 device")
                     divider
                     chevronRow("Passcode & Face ID", value: "On")
                     divider
-                    chevronRow("Two-Step Verification", value: nil)
+                    chevronRow("Local Encryption", value: "Enabled")
                 }
             }
             .padding(.top, 16)
@@ -398,7 +398,7 @@ struct StickersScreen: View {
     }
 }
 
-private struct DetailScreenContainer<Content: View>: View {
+struct DetailScreenContainer<Content: View>: View {
     let title: String
     var backTitle: String
     var trailingTitle: String?
@@ -476,7 +476,7 @@ private struct DetailScreenContainer<Content: View>: View {
     }
 }
 
-private struct DarkDetailScreenContainer<Content: View>: View {
+struct DarkDetailScreenContainer<Content: View>: View {
     let title: String
     let dismissAction: () -> Void
     @ViewBuilder let content: Content
@@ -533,7 +533,7 @@ private struct DarkDetailScreenContainer<Content: View>: View {
 }
 
 @ViewBuilder
-private func lightGroup<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+func lightGroup<Content: View>(@ViewBuilder content: () -> Content) -> some View {
     VStack(spacing: 0) {
         content()
     }
@@ -548,7 +548,7 @@ private func lightGroup<Content: View>(@ViewBuilder content: () -> Content) -> s
 }
 
 @ViewBuilder
-private func sectionTitle(_ title: String) -> some View {
+func sectionTitle(_ title: String) -> some View {
     HStack {
         Text(title)
             .font(.system(size: 14))
@@ -561,7 +561,7 @@ private func sectionTitle(_ title: String) -> some View {
 }
 
 @ViewBuilder
-private func footerNote(_ note: String) -> some View {
+func footerNote(_ note: String) -> some View {
     HStack {
         Text(note)
             .font(.system(size: 14))
@@ -574,14 +574,14 @@ private func footerNote(_ note: String) -> some View {
     .padding(.bottom, 12)
 }
 
-private var divider: some View {
+var divider: some View {
     Rectangle()
         .fill(Color.white.opacity(0.7))
         .frame(height: 0.5)
         .padding(.leading, 16)
 }
 
-private var darkDivider: some View {
+var darkDivider: some View {
     Rectangle()
         .fill(Color.white.opacity(0.08))
         .frame(height: 0.5)
@@ -589,7 +589,7 @@ private var darkDivider: some View {
 }
 
 @ViewBuilder
-private func chevronRow(_ title: String, value: String?) -> some View {
+func chevronRow(_ title: String, value: String?) -> some View {
     HStack {
         Text(title)
             .font(.system(size: 17))
@@ -612,7 +612,7 @@ private func chevronRow(_ title: String, value: String?) -> some View {
 }
 
 @ViewBuilder
-private func darkRow(_ title: String, value: String?) -> some View {
+func darkRow(_ title: String, value: String?) -> some View {
     HStack {
         Text(title)
             .font(.system(size: 17))
@@ -631,7 +631,7 @@ private func darkRow(_ title: String, value: String?) -> some View {
 }
 
 @ViewBuilder
-private func toggleRow(_ title: String, isOn: Binding<Bool>) -> some View {
+func toggleRow(_ title: String, isOn: Binding<Bool>) -> some View {
     HStack {
         Text(title)
             .font(.system(size: 17))
@@ -647,7 +647,7 @@ private func toggleRow(_ title: String, isOn: Binding<Bool>) -> some View {
 }
 
 @ViewBuilder
-private func toggleRowDark(_ title: String, isOn: Binding<Bool>) -> some View {
+func toggleRowDark(_ title: String, isOn: Binding<Bool>) -> some View {
     HStack {
         Text(title)
             .font(.system(size: 17))

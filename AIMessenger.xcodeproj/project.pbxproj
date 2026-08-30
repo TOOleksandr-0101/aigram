@@ -21,6 +21,9 @@
 		B1000001000000000000000C /* ChatConversationScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000000D /* ChatConversationScreen.swift */; };
 		B1000001000000000000000D /* SettingsHubScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000000E /* SettingsHubScreen.swift */; };
 		B1000001000000000000000E /* SettingsDetailScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000000F /* SettingsDetailScreens.swift */; };
+		B1000001000000000000000F /* AIWorkspace.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000010 /* AIWorkspace.swift */; };
+		B10000010000000000000010 /* OpenRouterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000011 /* OpenRouterService.swift */; };
+		B10000010000000000000011 /* AIGatewayScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000012 /* AIGatewayScreen.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -39,6 +42,9 @@
 		B2000001000000000000000D /* ChatConversationScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatConversationScreen.swift; sourceTree = "<group>"; };
 		B2000001000000000000000E /* SettingsHubScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsHubScreen.swift; sourceTree = "<group>"; };
 		B2000001000000000000000F /* SettingsDetailScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDetailScreens.swift; sourceTree = "<group>"; };
+		B20000010000000000000010 /* AIWorkspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIWorkspace.swift; sourceTree = "<group>"; };
+		B20000010000000000000011 /* OpenRouterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterService.swift; sourceTree = "<group>"; };
+		B20000010000000000000012 /* AIGatewayScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIGatewayScreen.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -83,6 +89,8 @@
 			isa = PBXGroup;
 			children = (
 				B20000010000000000000001 /* AIMessengerApp.swift */,
+				B20000010000000000000010 /* AIWorkspace.swift */,
+				B20000010000000000000011 /* OpenRouterService.swift */,
 				B20000010000000000000002 /* RootView.swift */,
 				B20000010000000000000003 /* TelegramTheme.swift */,
 			);
@@ -138,6 +146,7 @@
 		B4000001000000000000000A /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				B20000010000000000000012 /* AIGatewayScreen.swift */,
 				B2000001000000000000000E /* SettingsHubScreen.swift */,
 				B2000001000000000000000F /* SettingsDetailScreens.swift */,
 				B20000010000000000000008 /* SettingsScreen.swift */,
@@ -241,6 +250,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				B10000010000000000000001 /* AIMessengerApp.swift in Sources */,
+				B1000001000000000000000F /* AIWorkspace.swift in Sources */,
+				B10000010000000000000010 /* OpenRouterService.swift in Sources */,
 				B10000010000000000000002 /* RootView.swift in Sources */,
 				B10000010000000000000003 /* TelegramTheme.swift in Sources */,
 				B10000010000000000000004 /* ChatModels.swift in Sources */,
@@ -252,6 +263,7 @@
 				B1000001000000000000000A /* ContactsFlow.swift in Sources */,
 				B1000001000000000000000B /* CallsScreen.swift in Sources */,
 				B1000001000000000000000C /* ChatConversationScreen.swift in Sources */,
+				B10000010000000000000011 /* AIGatewayScreen.swift in Sources */,
 				B1000001000000000000000D /* SettingsHubScreen.swift in Sources */,
 				B1000001000000000000000E /* SettingsDetailScreens.swift in Sources */,
 			);

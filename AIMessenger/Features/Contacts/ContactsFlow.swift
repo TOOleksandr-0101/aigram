@@ -9,8 +9,8 @@ struct ContactsScreen: View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
                 topBar
-                actionRow(title: "Add People Nearby", symbol: "person.crop.circle.badge.plus", tint: TelegramPalette.accentBlue)
-                actionRow(title: "Invite Friends", symbol: "square.and.arrow.up", tint: TelegramPalette.accentBlue)
+                actionRow(title: "New Agent", symbol: "sparkles.rectangle.stack.fill", tint: TelegramPalette.accentBlue)
+                actionRow(title: "Explore Library", symbol: "square.grid.2x2.fill", tint: TelegramPalette.accentBlue)
 
                 ForEach(Array(contacts.enumerated()), id: \.element.id) { index, contact in
                     Button {
@@ -92,19 +92,23 @@ struct ContactsScreen: View {
             AvatarView(kind: contact.avatar, showsOnlineDot: contact.presence.isOnline)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text("\(contact.firstName) \(contact.lastName)")
+                Text(contact.displayName)
                     .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(.white)
 
-                Text(contact.presence.label)
+                Text(contact.roleTitle)
                     .font(.system(size: 15))
+                    .foregroundStyle(.white.opacity(0.68))
+
+                Text(contact.presence.label)
+                    .font(.system(size: 14))
                     .foregroundStyle(contact.presence.isOnline ? TelegramPalette.accentBlue : TelegramPalette.mutedText)
             }
 
             Spacer()
         }
         .padding(.horizontal, 10)
-        .frame(height: 76)
+        .frame(height: 88)
         .background(TelegramPalette.backgroundPrimary)
         .overlay(alignment: .bottom) {
             if showSeparator {
@@ -133,7 +137,7 @@ struct ContactInfoScreen: View {
                     infoGroup
                     actionGroup
                     communicationGroup
-                    destructiveButton(title: "Block User")
+                    destructiveButton(title: "Remove Agent")
                 }
                 .padding(.top, 16)
                 .padding(.bottom, 40)
@@ -152,11 +156,11 @@ struct ContactInfoScreen: View {
                 .frame(width: 82, height: 82)
                 .scaleEffect(1.32)
 
-            Text("\(contact.firstName) \(contact.lastName)")
+            Text(contact.displayName)
                 .font(.system(size: 24, weight: .semibold))
                 .foregroundStyle(.black)
 
-            Text(contact.presence.isOnline ? "online" : "last seen recently")
+            Text(contact.presence.label)
                 .font(.system(size: 15))
                 .foregroundStyle(contact.presence.isOnline ? TelegramPalette.accentBlue : Color(hex: 0x636366))
         }
@@ -168,21 +172,19 @@ struct ContactInfoScreen: View {
         LightGroupCard {
             InfoValueRow(title: "username", value: contact.username)
             DividerLine()
-            InfoValueRow(title: "main", value: contact.mainPhone)
+            InfoValueRow(title: "role", value: contact.roleTitle)
             DividerLine()
-            InfoValueRow(title: "home", value: contact.homePhone)
-            DividerLine()
-            InfoValueRow(title: "bio", value: contact.bio, multiline: true)
+            InfoValueRow(title: "about", value: contact.bio, multiline: true)
         }
     }
 
     private var actionGroup: some View {
         LightGroupCard {
-            PlainTextRow(title: "Share Contact", titleColor: TelegramPalette.accentBlue)
+            PlainTextRow(title: "Start Chat", titleColor: TelegramPalette.accentBlue)
             DividerLine()
-            PlainTextRow(title: "Send Message", titleColor: TelegramPalette.accentBlue)
+            PlainTextRow(title: "Start Voice Session", titleColor: TelegramPalette.accentBlue)
             DividerLine()
-            PlainTextRow(title: "Start Secret Chat", titleColor: TelegramPalette.accentBlue)
+            PlainTextRow(title: "Pin to Top", titleColor: TelegramPalette.accentBlue)
         }
     }
 
@@ -190,9 +192,9 @@ struct ContactInfoScreen: View {
         LightGroupCard {
             ChevronValueRow(title: "Shared Media", value: "Enabled")
             DividerLine()
-            ChevronValueRow(title: "Notifications", value: "1")
+            ChevronValueRow(title: "Notifications", value: "Default")
             DividerLine()
-            ChevronValueRow(title: "Groups In Common", value: nil)
+            ChevronValueRow(title: "Context Memory", value: "On")
         }
     }
 
@@ -248,14 +250,12 @@ struct EditableContactInfoScreen: View {
     let contact: ContactProfile
 
     @Environment(\.dismiss) private var dismiss
-    @State private var firstName: String
-    @State private var lastName: String
+    @State private var displayName: String
     @State private var bio: String
 
     init(contact: ContactProfile) {
         self.contact = contact
-        _firstName = State(initialValue: contact.firstName)
-        _lastName = State(initialValue: contact.lastName)
+        _displayName = State(initialValue: contact.displayName)
         _bio = State(initialValue: contact.bio)
     }
 
@@ -298,18 +298,20 @@ struct EditableContactInfoScreen: View {
                             AvatarView(kind: contact.avatar, showsOnlineDot: false)
 
                             VStack(spacing: 16) {
-                                TextField("John", text: $firstName)
+                                TextField("Agent name", text: $displayName)
                                     .font(.system(size: 17))
                                 DividerLine()
-                                TextField("Zack", text: $lastName)
+                                Text(contact.username)
                                     .font(.system(size: 17))
+                                    .foregroundStyle(Color(hex: 0x636366))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }
                         .padding(.horizontal, 15)
                         .padding(.vertical, 13)
                         .background(Color.white)
 
-                        Text("Enter contact name and update profile details.")
+                        Text("Rename the agent or update the note you keep for it locally.")
                             .font(.system(size: 14))
                             .foregroundStyle(Color(hex: 0x636366))
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -318,17 +320,15 @@ struct EditableContactInfoScreen: View {
                     }
 
                     LightGroupCard {
-                        InfoValueRow(title: "main", value: contact.mainPhone)
-                        DividerLine()
-                        InfoValueRow(title: "home", value: contact.homePhone)
+                        InfoValueRow(title: "role", value: contact.roleTitle)
                         DividerLine()
                         HStack(alignment: .top) {
-                            Text("bio")
+                            Text("note")
                                 .font(.system(size: 15))
                                 .foregroundStyle(Color(hex: 0x636366))
                                 .frame(width: 86, alignment: .leading)
 
-                            TextField("Bio", text: $bio, axis: .vertical)
+                            TextField("Add a note", text: $bio, axis: .vertical)
                                 .font(.system(size: 17))
                                 .foregroundStyle(.black)
                         }
@@ -340,7 +340,7 @@ struct EditableContactInfoScreen: View {
                         ChevronValueRow(title: "Notifications", value: "Enabled")
                     }
 
-                    Text("Delete Contact")
+                    Text("Delete Agent")
                         .font(.system(size: 17))
                         .foregroundStyle(Color(hex: 0xFE3B30))
                         .frame(maxWidth: .infinity)

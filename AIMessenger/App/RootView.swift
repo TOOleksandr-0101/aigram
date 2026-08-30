@@ -1,24 +1,14 @@
 import SwiftUI
 
 struct RootView: View {
-    @State private var isAuthorized = false
+    @StateObject private var aiWorkspace = AIWorkspace()
     @State private var selectedTab: AppTab = .chats
     @State private var contactsPath: [ContactsRoute] = []
     @State private var chatsPath: [ChatsRoute] = []
     @State private var settingsPath: [SettingsRoute] = []
 
     var body: some View {
-        Group {
-            if isAuthorized {
-                appShell
-            } else {
-                AuthorizationScreen {
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        isAuthorized = true
-                    }
-                }
-            }
-        }
+        appShell
     }
 
     private var appShell: some View {
@@ -32,6 +22,7 @@ struct RootView: View {
         .ignoresSafeArea(edges: .bottom)
         .background(currentBackground.ignoresSafeArea())
         .preferredColorScheme(selectedTab == .settings ? .light : .dark)
+        .environmentObject(aiWorkspace)
     }
 
     @ViewBuilder
@@ -89,6 +80,8 @@ struct RootView: View {
                     switch route {
                     case .editProfile:
                         EditProfileScreen()
+                    case .aiSetup:
+                        AIGatewayScreen()
                     case .notifications:
                         NotificationsScreen()
                     case .privacySecurity:
