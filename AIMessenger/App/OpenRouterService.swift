@@ -57,6 +57,7 @@ struct OpenRouterService {
         draft: String,
         thread: ChatThread,
         history: [ConversationMessage],
+        memoryNote: String,
         configuration: OpenRouterConfiguration
     ) async throws -> String {
         guard configuration.apiKey.isEmpty == false else {
@@ -69,7 +70,7 @@ struct OpenRouterService {
 
         let requestBody = OpenRouterRequestBody(
             model: configuration.modelSlug,
-            messages: makeMessages(draft: draft, thread: thread, history: history),
+            messages: makeMessages(draft: draft, thread: thread, history: history, memoryNote: memoryNote),
             temperature: 0.85,
             provider: OpenRouterProviderOptions(
                 allow_fallbacks: true,
@@ -108,31 +109,43 @@ struct OpenRouterService {
     private func makeMessages(
         draft: String,
         thread: ChatThread,
-        history: [ConversationMessage]
+        history: [ConversationMessage],
+        memoryNote: String
     ) -> [OpenRouterChatMessage] {
-        let system = """
+        var system = """
         \(thread.aiProfile.rolePrompt)
         You are inside an iOS messenger app where you appear as a normal chat contact.
         Keep replies natural, conversational, and message-sized by default.
         Avoid saying you are an AI unless the user directly asks.
         """
 
-        let priorMessages = history.compactMap { message -> OpenRouterChatMessage? in
+        if memoryNote.isEmpty == false {
+            system += "\n\nSaved chat memory:\n\(memoryNote)"
+        }
+
+        let priorMessages = history.suffix(8).compactMap { message -> OpenRouterChatMessage? in
+            let contentPrefix: String
+            if message.side == .incoming, let authorName = message.authorName {
+                contentPrefix = "[\(authorName)] "
+            } else {
+                contentPrefix = ""
+            }
+
             switch message.payload {
             case let .text(text):
                 return OpenRouterChatMessage(
                     role: message.side == .incoming ? "assistant" : "user",
-                    content: text
+                    content: contentPrefix + text
                 )
             case let .emoji(value):
                 return OpenRouterChatMessage(
                     role: message.side == .incoming ? "assistant" : "user",
-                    content: value
+                    content: contentPrefix + value
                 )
             case let .photo(name, size):
                 return OpenRouterChatMessage(
                     role: message.side == .incoming ? "assistant" : "user",
-                    content: "[Shared image: \(name), \(size)]"
+                    content: contentPrefix + "[Shared image: \(name), \(size)]"
                 )
             }
         }

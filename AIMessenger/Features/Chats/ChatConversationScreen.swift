@@ -6,21 +6,21 @@ struct ChatConversationScreen: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var aiWorkspace: AIWorkspace
     @State private var draft = ""
-    @State private var messages: [ConversationMessage]
+    @State private var messages: [ConversationMessage] = []
     @State private var isSending = false
+    @State private var isCallPresented = false
     @State private var errorText: String?
     private let openRouterService = OpenRouterService()
 
     init(thread: ChatThread) {
         self.thread = thread
-        _messages = State(initialValue: ConversationMessage.bootstrapConversation(for: thread))
     }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 10) {
                 ForEach(messages) { message in
-                    MessageBubble(message: message)
+                    MessageBubble(message: message, isGroupThread: thread.isGroup)
                 }
 
                 if isSending {
@@ -43,6 +43,17 @@ struct ChatConversationScreen: View {
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarHidden(true)
         .navigationBarBackButtonHidden(true)
+        .task {
+            loadConversationIfNeeded()
+        }
+        .fullScreenCover(isPresented: $isCallPresented) {
+            TelegramCallView(
+                contactName: thread.title,
+                avatar: thread.avatar,
+                roleTitle: thread.aiProfile.roleTitle,
+                greetingText: thread.aiProfile.greeting
+            )
+        }
     }
 
     private var topBar: some View {
@@ -64,12 +75,32 @@ struct ChatConversationScreen: View {
                 Text(thread.title)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(.white)
-                Text(thread.aiProfile.status)
-                    .font(.system(size: 13))
-                    .foregroundStyle(thread.online ? TelegramPalette.skyBlue : TelegramPalette.mutedText)
+
+                if isSending {
+                    HStack(spacing: 2) {
+                        Text("typing")
+                            .font(.system(size: 13))
+                            .foregroundStyle(TelegramPalette.skyBlue)
+                        TypingHeaderDots()
+                    }
+                } else {
+                    Text(thread.isGroup ? thread.memberNamesText : thread.aiProfile.status)
+                        .font(.system(size: 13))
+                        .foregroundStyle(thread.online ? TelegramPalette.skyBlue : TelegramPalette.mutedText)
+                        .lineLimit(1)
+                }
             }
 
             Spacer()
+
+            Button {
+                isCallPresented = true
+            } label: {
+                Image(systemName: "phone.fill")
+                    .font(.system(size: 16))
+                    .foregroundStyle(.white)
+                    .frame(width: 32, height: 32)
+            }
 
             Button {
             } label: {
@@ -177,6 +208,7 @@ struct ChatConversationScreen: View {
             time: currentTimeLabel
         )
         messages.append(outgoingMessage)
+        persistMessages()
 
         do {
             let reply: String
@@ -185,6 +217,7 @@ struct ChatConversationScreen: View {
                     draft: trimmedDraft,
                     thread: thread,
                     history: historyBeforeRequest,
+                    memoryNote: aiWorkspace.memoryNote(for: thread),
                     configuration: aiWorkspace.configurationSnapshot
                 )
             } else {
@@ -192,31 +225,42 @@ struct ChatConversationScreen: View {
                 errorText = "OpenRouter is not connected yet. This reply uses the built-in offline fallback."
             }
 
-            messages.append(
-                ConversationMessage(
-                    id: UUID().uuidString,
-                    side: .incoming,
-                    payload: .text(reply),
-                    time: currentTimeLabel
-                )
-            )
+            messages.append(contentsOf: incomingMessages(from: reply))
+            persistMessages()
         } catch {
             errorText = error.localizedDescription
-            messages.append(
-                ConversationMessage(
-                    id: UUID().uuidString,
-                    side: .incoming,
-                    payload: .text(offlineFallbackReply(for: trimmedDraft)),
-                    time: currentTimeLabel
-                )
-            )
+            messages.append(contentsOf: incomingMessages(from: offlineFallbackReply(for: trimmedDraft)))
+            persistMessages()
         }
 
         isSending = false
     }
 
+    @MainActor
+    private func loadConversationIfNeeded() {
+        aiWorkspace.ensureConversationExists(for: thread)
+        if messages.isEmpty {
+            messages = aiWorkspace.messages(for: thread)
+        }
+    }
+
+    @MainActor
+    private func persistMessages() {
+        aiWorkspace.replaceMessages(messages, for: thread)
+    }
+
     private func offlineFallbackReply(for draft: String) -> String {
         switch thread.id {
+        case "seminar-circle":
+            return """
+            [Study Room] Могу быстро разложить это на понятный конспект и 5 карточек для повторения: \(draft)
+            [Research Desk] Если хочешь, следом добавлю короткое сравнение источников и что лучше цитировать в работе.
+            """
+        case "build-board":
+            return """
+            [Code Partner] Для начала я бы сузил задачу: входные данные, ожидаемый результат и где именно ломается сценарий для \(draft).
+            [Product Coach] После этого можно сразу решить, что упростить в пользовательском потоке, чтобы проблема не возвращалась.
+            """
         case "research-desk":
             return "Быстро разложу это на 3 части: цель, варианты и критерии выбора. Если хочешь, следующим сообщением сделаю короткое сравнение именно по твоему запросу: \(draft)"
         case "product-coach":
@@ -227,6 +271,8 @@ struct ChatConversationScreen: View {
             return "Давай упростим это до понятного учебного объяснения. Могу разбить тему на шаги, мини-конспект или карточки по запросу: \(draft)"
         case "design-scout":
             return "Если это про интерфейс или визуал, я бы сначала посмотрел на иерархию, отступы и главный акцент. Могу сразу дать короткий дизайн-разбор для: \(draft)"
+        case "memory-vault":
+            return "📌 Сохранил заметку в Memory Vault: \"\(draft)\". Она зафиксирована в локальной памяти диалогов."
         default:
             return "Понял. Могу ответить коротко, подробно или в рабочем тоне этого контакта. Для живых ответов подключи OpenRouter в Settings -> AI Gateway."
         }
@@ -237,10 +283,77 @@ struct ChatConversationScreen: View {
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: Date())
     }
+
+    private func incomingMessages(from reply: String) -> [ConversationMessage] {
+        let trimmedReply = reply.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if thread.isGroup {
+            let parsed = parseGroupReply(trimmedReply)
+            if parsed.isEmpty == false {
+                return parsed
+            }
+
+            if let defaultMember = thread.members.first {
+                return [
+                    ConversationMessage(
+                        id: UUID().uuidString,
+                        side: .incoming,
+                        payload: .text(trimmedReply),
+                        time: currentTimeLabel,
+                        authorName: defaultMember.name,
+                        authorAvatar: defaultMember.avatar
+                    )
+                ]
+            }
+        }
+
+        return [
+            ConversationMessage(
+                id: UUID().uuidString,
+                side: .incoming,
+                payload: .text(trimmedReply),
+                time: currentTimeLabel
+            )
+        ]
+    }
+
+    private func parseGroupReply(_ reply: String) -> [ConversationMessage] {
+        let lines = reply
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.isEmpty == false }
+
+        return lines.compactMap { line in
+            guard line.hasPrefix("["),
+                  let closingIndex = line.firstIndex(of: "]") else {
+                return nil
+            }
+
+            let name = String(line[line.index(after: line.startIndex) ..< closingIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let contentStart = line.index(after: closingIndex)
+            let content = String(line[contentStart...]).trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard content.isEmpty == false else { return nil }
+
+            let member = thread.members.first { candidate in
+                candidate.name.caseInsensitiveCompare(name) == .orderedSame
+            } ?? thread.members.first
+
+            return ConversationMessage(
+                id: UUID().uuidString,
+                side: .incoming,
+                payload: .text(content),
+                time: currentTimeLabel,
+                authorName: member?.name ?? name,
+                authorAvatar: member?.avatar
+            )
+        }
+    }
 }
 
 private struct MessageBubble: View {
     let message: ConversationMessage
+    let isGroupThread: Bool
 
     var body: some View {
         HStack {
@@ -261,25 +374,58 @@ private struct MessageBubble: View {
 
     @ViewBuilder
     private var content: some View {
+        VStack(alignment: message.side == .outgoing ? .trailing : .leading, spacing: 6) {
+            if isGroupThread, message.side == .incoming, let authorName = message.authorName {
+                Text(authorName)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(authorTint)
+            }
+
+            payloadContent
+        }
+    }
+
+    @ViewBuilder
+    private var payloadContent: some View {
         switch message.payload {
         case let .text(text):
-            VStack(alignment: .trailing, spacing: 6) {
+            VStack(alignment: message.side == .outgoing ? .trailing : .leading, spacing: 5) {
                 Text(text)
                     .font(.system(size: 17))
                     .foregroundStyle(foregroundColor)
 
-                Text(message.time)
-                    .font(.system(size: 11))
-                    .foregroundStyle(foregroundColor.opacity(0.7))
+                HStack(spacing: 3) {
+                    Text(message.time)
+                        .font(.system(size: 11))
+
+                    if message.side == .outgoing {
+                        HStack(spacing: -3) {
+                            Image(systemName: "checkmark")
+                            Image(systemName: "checkmark")
+                        }
+                        .font(.system(size: 9, weight: .bold))
+                    }
+                }
+                .foregroundStyle(foregroundColor.opacity(0.75))
             }
         case let .emoji(value):
-            VStack(alignment: .trailing, spacing: 6) {
+            VStack(alignment: message.side == .outgoing ? .trailing : .leading, spacing: 5) {
                 Text(value)
                     .font(.system(size: 34))
 
-                Text(message.time)
-                    .font(.system(size: 11))
-                    .foregroundStyle(foregroundColor.opacity(0.7))
+                HStack(spacing: 3) {
+                    Text(message.time)
+                        .font(.system(size: 11))
+
+                    if message.side == .outgoing {
+                        HStack(spacing: -3) {
+                            Image(systemName: "checkmark")
+                            Image(systemName: "checkmark")
+                        }
+                        .font(.system(size: 9, weight: .bold))
+                    }
+                }
+                .foregroundStyle(foregroundColor.opacity(0.75))
             }
         case let .photo(name, size):
             VStack(alignment: .leading, spacing: 10) {
@@ -325,6 +471,31 @@ private struct MessageBubble: View {
     private var backgroundColor: Color {
         message.side == .outgoing ? Color(hex: 0x0A84FF) : Color.white
     }
+
+    private var authorTint: Color {
+        switch message.authorAvatar {
+        case .saved:
+            return Color(hex: 0x1F8CFF)
+        case .visionCluster:
+            return Color(hex: 0x7DD3FC)
+        case .tutor:
+            return Color(hex: 0xC969FF)
+        case .uxCopilot:
+            return Color(hex: 0xFF9D42)
+        case .researchBot:
+            return Color(hex: 0x8A5BFF)
+        case .artEngine:
+            return Color(hex: 0x466DFF)
+        case .codeAgents:
+            return Color(hex: 0x3C72FF)
+        case .seminarCircle:
+            return Color(hex: 0x2F8FFF)
+        case .buildBoard:
+            return Color(hex: 0xFF8A57)
+        case .none:
+            return Color(hex: 0x3578F6)
+        }
+    }
 }
 
 private struct TypingBubble: View {
@@ -353,6 +524,22 @@ private struct TypingBubble: View {
                 phase = (phase + 1) % 3
             }
         }
+    }
+}
+
+private struct TypingHeaderDots: View {
+    @State private var dotCount = 1
+
+    var body: some View {
+        Text(String(repeating: ".", count: dotCount))
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(TelegramPalette.skyBlue)
+            .task {
+                while true {
+                    try? await Task.sleep(nanoseconds: 350_000_000)
+                    dotCount = (dotCount % 3) + 1
+                }
+            }
     }
 }
 
@@ -452,5 +639,6 @@ struct ChatModalPreviewScreen: View {
 struct ChatConversationScreen_Previews: PreviewProvider {
     static var previews: some View {
         ChatConversationScreen(thread: ChatThread.sampleThreads[0])
+            .environmentObject(AIWorkspace())
     }
 }

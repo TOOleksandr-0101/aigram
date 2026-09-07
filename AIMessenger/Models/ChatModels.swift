@@ -51,7 +51,12 @@ enum DeliveryState {
     case read
 }
 
-enum ChatAvatarKind {
+enum ChatThreadKind: Hashable {
+    case direct
+    case group
+}
+
+enum ChatAvatarKind: String, Hashable, Codable {
     case saved
     case visionCluster
     case tutor
@@ -59,6 +64,8 @@ enum ChatAvatarKind {
     case researchBot
     case artEngine
     case codeAgents
+    case seminarCircle
+    case buildBoard
 }
 
 struct ChatThread: Identifiable, Hashable {
@@ -76,6 +83,17 @@ struct ChatThread: Identifiable, Hashable {
     let deliveryState: DeliveryState
     let groupedBackground: Bool
     let avatar: ChatAvatarKind
+    let kind: ChatThreadKind
+}
+
+struct ChatThreadSummary: Identifiable, Hashable {
+    let thread: ChatThread
+    let previewText: String
+    let detailText: String?
+    let timeText: String
+    let searchableText: String
+
+    var id: String { thread.id }
 }
 
 struct AIContactProfile: Hashable {
@@ -87,13 +105,22 @@ struct AIContactProfile: Hashable {
     let bio: String
 }
 
-struct ConversationMessage: Identifiable, Hashable {
-    enum Side: Hashable {
+struct ChatGroupMember: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let username: String
+    let roleTitle: String
+    let presence: PresenceState
+    let avatar: ChatAvatarKind
+}
+
+struct ConversationMessage: Identifiable, Hashable, Codable {
+    enum Side: Hashable, Codable {
         case incoming
         case outgoing
     }
 
-    enum Payload: Hashable {
+    enum Payload: Hashable, Codable {
         case text(String)
         case emoji(String)
         case photo(name: String, size: String)
@@ -103,6 +130,24 @@ struct ConversationMessage: Identifiable, Hashable {
     let side: Side
     let payload: Payload
     let time: String
+    let authorName: String?
+    let authorAvatar: ChatAvatarKind?
+
+    init(
+        id: String,
+        side: Side,
+        payload: Payload,
+        time: String,
+        authorName: String? = nil,
+        authorAvatar: ChatAvatarKind? = nil
+    ) {
+        self.id = id
+        self.side = side
+        self.payload = payload
+        self.time = time
+        self.authorName = authorName
+        self.authorAvatar = authorAvatar
+    }
 }
 
 enum PresenceState: Hashable {
@@ -178,7 +223,8 @@ extension ChatThread {
             revealSide: .none,
             deliveryState: .none,
             groupedBackground: true,
-            avatar: .saved
+            avatar: .saved,
+            kind: .direct
         ),
         ChatThread(
             id: "design-scout",
@@ -190,27 +236,29 @@ extension ChatThread {
             badgeBright: false,
             isMuted: false,
             isPinned: true,
-            online: false,
+            online: true,
             revealSide: .none,
             deliveryState: .read,
             groupedBackground: true,
-            avatar: .visionCluster
+            avatar: .visionCluster,
+            kind: .direct
         ),
         ChatThread(
-            id: "study-room",
-            title: "Study Room",
-            headline: "I turned the topic into 5 flashcards.",
-            detail: nil,
+            id: "seminar-circle",
+            title: "Seminar Circle",
+            headline: "Memory Vault pinned the reading pack",
+            detail: "Study Room and Research Desk active",
             time: "Sun",
             badge: nil,
             badgeBright: false,
             isMuted: false,
             isPinned: true,
-            online: false,
+            online: true,
             revealSide: .left,
             deliveryState: .none,
             groupedBackground: true,
-            avatar: .tutor
+            avatar: .seminarCircle,
+            kind: .group
         ),
         ChatThread(
             id: "product-coach",
@@ -226,15 +274,16 @@ extension ChatThread {
             revealSide: .none,
             deliveryState: .none,
             groupedBackground: false,
-            avatar: .uxCopilot
+            avatar: .uxCopilot,
+            kind: .direct
         ),
         ChatThread(
-            id: "research-desk",
-            title: "Research Desk",
-            headline: "I compared the 4 APIs for you.",
-            detail: nil,
+            id: "build-board",
+            title: "Build Board",
+            headline: "Code Partner posted a release checklist",
+            detail: "Design Scout joined the review",
             time: "13:25",
-            badge: nil,
+            badge: "3",
             badgeBright: false,
             isMuted: false,
             isPinned: false,
@@ -242,7 +291,25 @@ extension ChatThread {
             revealSide: .right,
             deliveryState: .read,
             groupedBackground: false,
-            avatar: .researchBot
+            avatar: .buildBoard,
+            kind: .group
+        ),
+        ChatThread(
+            id: "research-desk",
+            title: "Research Desk",
+            headline: "I compared the 4 APIs for you.",
+            detail: nil,
+            time: "12:10",
+            badge: nil,
+            badgeBright: false,
+            isMuted: false,
+            isPinned: false,
+            online: true,
+            revealSide: .none,
+            deliveryState: .read,
+            groupedBackground: false,
+            avatar: .researchBot,
+            kind: .direct
         ),
         ChatThread(
             id: "visual-lab",
@@ -258,7 +325,8 @@ extension ChatThread {
             revealSide: .none,
             deliveryState: .none,
             groupedBackground: false,
-            avatar: .artEngine
+            avatar: .artEngine,
+            kind: .direct
         ),
         ChatThread(
             id: "code-partner",
@@ -274,9 +342,91 @@ extension ChatThread {
             revealSide: .none,
             deliveryState: .none,
             groupedBackground: false,
-            avatar: .codeAgents
+            avatar: .codeAgents,
+            kind: .direct
         )
     ]
+
+    var isGroup: Bool {
+        kind == .group
+    }
+
+    var members: [ChatGroupMember] {
+        switch id {
+        case "seminar-circle":
+            return [
+                ChatGroupMember(
+                    id: "study-room",
+                    name: "Study Room",
+                    username: "@studyroom",
+                    roleTitle: "Study assistant",
+                    presence: .online,
+                    avatar: .tutor
+                ),
+                ChatGroupMember(
+                    id: "research-desk",
+                    name: "Research Desk",
+                    username: "@researchdesk",
+                    roleTitle: "Research and comparison",
+                    presence: .online,
+                    avatar: .researchBot
+                ),
+                ChatGroupMember(
+                    id: "memory-vault",
+                    name: "Memory Vault",
+                    username: "@memoryvault",
+                    roleTitle: "Knowledge memory",
+                    presence: .lastSeen("active 18 minutes ago"),
+                    avatar: .saved
+                )
+            ]
+        case "build-board":
+            return [
+                ChatGroupMember(
+                    id: "code-partner",
+                    name: "Code Partner",
+                    username: "@codepartner",
+                    roleTitle: "Engineering copilot",
+                    presence: .online,
+                    avatar: .codeAgents
+                ),
+                ChatGroupMember(
+                    id: "product-coach",
+                    name: "Product Coach",
+                    username: "@productcoach",
+                    roleTitle: "Product and UX thinking",
+                    presence: .lastSeen("active 9 minutes ago"),
+                    avatar: .uxCopilot
+                ),
+                ChatGroupMember(
+                    id: "design-scout",
+                    name: "Design Scout",
+                    username: "@designscout",
+                    roleTitle: "UI and visual review",
+                    presence: .online,
+                    avatar: .visionCluster
+                )
+            ]
+        default:
+            return []
+        }
+    }
+
+    var memberNamesText: String {
+        members.map(\.name).joined(separator: ", ")
+    }
+
+    var participantSummary: String {
+        guard isGroup else { return aiProfile.status }
+        let onlineCount = members.filter(\.presence.isOnline).count
+        return "\(members.count) AI agents, \(onlineCount) online"
+    }
+
+    var searchableParticipants: String {
+        members
+            .map { [$0.name, $0.username, $0.roleTitle].joined(separator: " ") }
+            .joined(separator: " ")
+    }
 
     var aiProfile: AIContactProfile {
         switch id {
@@ -333,6 +483,40 @@ extension ChatThread {
                 greeting: "Describe a scene, poster, mood, or character and I'll help you sharpen the visual direction fast.",
                 status: "image direction ready",
                 bio: "Works on art direction, visual concepts, moods, prompts, and creative iteration."
+            )
+        case "seminar-circle":
+            return AIContactProfile(
+                username: "@seminarcircle",
+                roleTitle: "Collaborative study group",
+                rolePrompt: """
+                You are Seminar Circle, a group chat with three AI participants: Study Room, Research Desk, and Memory Vault.
+                Study Room explains ideas simply and supports revision.
+                Research Desk compares facts and structures findings.
+                Memory Vault remembers notes, decisions, and prior context.
+                Reply as one or two short chat messages from the most relevant participant.
+                Format every message exactly as [Name] message on its own line.
+                Keep the tone casual and messenger-like.
+                """,
+                greeting: "Study Room, Research Desk, and Memory Vault are all here. Drop a topic and the right person will pick it up.",
+                status: "group is active",
+                bio: "A shared study chat where multiple AI agents split explaining, researching, and storing context."
+            )
+        case "build-board":
+            return AIContactProfile(
+                username: "@buildboard",
+                roleTitle: "Collaborative build group",
+                rolePrompt: """
+                You are Build Board, a group chat with Code Partner, Product Coach, and Design Scout.
+                Code Partner handles engineering and debugging.
+                Product Coach handles UX logic, flow, and product tradeoffs.
+                Design Scout handles visual review and hierarchy.
+                Reply as one or two short chat messages from the most relevant participant.
+                Format every message exactly as [Name] message on its own line.
+                Keep each message compact and natural.
+                """,
+                greeting: "Code Partner, Product Coach, and Design Scout are synced here. Send a feature, bug, or screen and we'll split the work.",
+                status: "group is active",
+                bio: "A product squad chat where code, UX, and visual critique respond inside one thread."
             )
         default:
             return AIContactProfile(
@@ -429,25 +613,130 @@ extension CallRecord {
 
 extension ConversationMessage {
     static func bootstrapConversation(for thread: ChatThread) -> [ConversationMessage] {
-        let intro = thread.aiProfile.greeting
-
-        return [
-            ConversationMessage(
-                id: "\(thread.id)-hello",
-                side: .incoming,
-                payload: .text(intro),
-                time: "now"
-            )
-        ]
+        switch thread.id {
+        case "memory-vault":
+            return [
+                ConversationMessage(
+                    id: "\(thread.id)-1",
+                    side: .incoming,
+                    payload: .text("I've packed your last notes into one summary: thesis, risks, and final deadline."),
+                    time: "Fri"
+                ),
+                ConversationMessage(
+                    id: "\(thread.id)-2",
+                    side: .incoming,
+                    payload: .text("If you send new raw thoughts, I'll merge them without losing the earlier context."),
+                    time: "Fri"
+                )
+            ]
+        case "design-scout":
+            return [
+                ConversationMessage(
+                    id: "\(thread.id)-1",
+                    side: .incoming,
+                    payload: .text("The layout already feels cleaner. Next I'd tighten spacing around the hero and calm the icon sizes."),
+                    time: "09:29"
+                )
+            ]
+        case "seminar-circle":
+            return [
+                ConversationMessage(
+                    id: "\(thread.id)-1",
+                    side: .incoming,
+                    payload: .text("I split the lecture into 5 flashcards and a mini revision route."),
+                    time: "Sun",
+                    authorName: "Study Room",
+                    authorAvatar: .tutor
+                ),
+                ConversationMessage(
+                    id: "\(thread.id)-2",
+                    side: .incoming,
+                    payload: .text("Pinned source notes: key quotes, dates, and the professor's requirements."),
+                    time: "Sun",
+                    authorName: "Memory Vault",
+                    authorAvatar: .saved
+                ),
+                ConversationMessage(
+                    id: "\(thread.id)-3",
+                    side: .incoming,
+                    payload: .text("If needed, I can also compare the two papers and highlight where their arguments conflict."),
+                    time: "Sun",
+                    authorName: "Research Desk",
+                    authorAvatar: .researchBot
+                )
+            ]
+        case "product-coach":
+            return [
+                ConversationMessage(
+                    id: "\(thread.id)-1",
+                    side: .incoming,
+                    payload: .text("The onboarding can probably lose one full step. Users already understand the value earlier than the flow assumes."),
+                    time: "11:30"
+                )
+            ]
+        case "build-board":
+            return [
+                ConversationMessage(
+                    id: "\(thread.id)-1",
+                    side: .incoming,
+                    payload: .text("I traced the bug to state sync after returning from the detail screen."),
+                    time: "13:18",
+                    authorName: "Code Partner",
+                    authorAvatar: .codeAgents
+                ),
+                ConversationMessage(
+                    id: "\(thread.id)-2",
+                    side: .incoming,
+                    payload: .text("If we fix that, I also want to reduce one tap in the main creation flow."),
+                    time: "13:21",
+                    authorName: "Product Coach",
+                    authorAvatar: .uxCopilot
+                ),
+                ConversationMessage(
+                    id: "\(thread.id)-3",
+                    side: .incoming,
+                    payload: .text("And visually I'd merge the duplicated top actions so the hierarchy feels calmer."),
+                    time: "13:25",
+                    authorName: "Design Scout",
+                    authorAvatar: .visionCluster
+                )
+            ]
+        case "research-desk":
+            return [
+                ConversationMessage(
+                    id: "\(thread.id)-1",
+                    side: .incoming,
+                    payload: .text("I compared the low-cost model routes. OpenRouter is still the easiest path if you want one clean gateway."),
+                    time: "12:10"
+                )
+            ]
+        case "visual-lab":
+            return [
+                ConversationMessage(
+                    id: "\(thread.id)-1",
+                    side: .incoming,
+                    payload: .text("I see two directions: sharper Telegram realism or a slightly softer premium look. I can push either."),
+                    time: "10:42"
+                )
+            ]
+        case "code-partner":
+            return [
+                ConversationMessage(
+                    id: "\(thread.id)-1",
+                    side: .incoming,
+                    payload: .text("I checked the navigation duplication. The next thing I'd audit is where the custom header and native navigation bar overlap."),
+                    time: "Sat"
+                )
+            ]
+        default:
+            return [
+                ConversationMessage(
+                    id: "\(thread.id)-hello",
+                    side: .incoming,
+                    payload: .text(thread.aiProfile.greeting),
+                    time: "now"
+                )
+            ]
+        }
     }
-
-    static let sampleConversation: [ConversationMessage] = [
-        ConversationMessage(id: "msg-1", side: .incoming, payload: .text("Send me the brief and I'll summarize the moving parts first."), time: "11:40"),
-        ConversationMessage(id: "msg-2", side: .outgoing, payload: .text("I need a simpler plan for the project."), time: "11:41"),
-        ConversationMessage(id: "msg-3", side: .incoming, payload: .text("Sure. I can give you a short version, a step-by-step version, or a deadline-first version."), time: "11:42"),
-        ConversationMessage(id: "msg-4", side: .outgoing, payload: .text("Let's do step by step."), time: "11:43"),
-        ConversationMessage(id: "msg-5", side: .incoming, payload: .emoji("👍"), time: "11:43"),
-        ConversationMessage(id: "msg-6", side: .incoming, payload: .text("Step 1: define the outcome. Step 2: list the screens. Step 3: connect the live model."), time: "11:44"),
-        ConversationMessage(id: "msg-7", side: .outgoing, payload: .photo(name: "screen-draft.png", size: "2.6 MB"), time: "11:45")
-    ]
 }

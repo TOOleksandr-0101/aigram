@@ -3,6 +3,7 @@ import SwiftUI
 struct ChatsScreen: View {
     let onOpenThread: (ChatThread) -> Void
 
+    @EnvironmentObject private var aiWorkspace: AIWorkspace
     private let threads = ChatThread.sampleThreads
     @State private var showModalPreview = false
     @State private var searchText = ""
@@ -20,12 +21,12 @@ struct ChatsScreen: View {
         .navigationBarBackButtonHidden(true)
     }
 
-    private var filteredThreads: [ChatThread] {
-        guard searchText.isEmpty == false else { return threads }
+    private var filteredThreads: [ChatThreadSummary] {
+        let summaries = aiWorkspace.orderedSummaries(for: threads)
+        guard searchText.isEmpty == false else { return summaries }
 
-        return threads.filter { thread in
-            let values = [thread.title, thread.headline, thread.detail ?? ""]
-            return values.joined(separator: " ").localizedCaseInsensitiveContains(searchText)
+        return summaries.filter { summary in
+            summary.searchableText.localizedCaseInsensitiveContains(searchText)
         }
     }
 
@@ -87,16 +88,16 @@ struct ChatsScreen: View {
 
     private var chatsList: some View {
         List {
-            ForEach(Array(filteredThreads.enumerated()), id: \.element.id) { index, thread in
+            ForEach(Array(filteredThreads.enumerated()), id: \.element.id) { index, summary in
                 Button {
-                    onOpenThread(thread)
+                    onOpenThread(summary.thread)
                 } label: {
-                    ChatRow(thread: thread, showSeparator: index < filteredThreads.count - 1)
+                    ChatRow(summary: summary, showSeparator: index < filteredThreads.count - 1)
                 }
                 .buttonStyle(.plain)
                 .listRowInsets(EdgeInsets())
                 .listRowSeparator(.hidden)
-                .listRowBackground(thread.groupedBackground ? TelegramPalette.backgroundElevated : TelegramPalette.backgroundPrimary)
+                .listRowBackground(summary.thread.groupedBackground ? TelegramPalette.backgroundElevated : TelegramPalette.backgroundPrimary)
                 .swipeActions(edge: .leading, allowsFullSwipe: false) {
                     Button { } label: {
                         swipeLabel(title: "Pin", systemImage: "pin.fill")
@@ -148,8 +149,10 @@ struct ChatsScreen: View {
 }
 
 private struct ChatRow: View {
-    let thread: ChatThread
+    let summary: ChatThreadSummary
     let showSeparator: Bool
+
+    private var thread: ChatThread { summary.thread }
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -191,8 +194,8 @@ private struct ChatRow: View {
 
     @ViewBuilder
     private var previewBlock: some View {
-        if let detail = thread.detail {
-            Text(thread.headline)
+        if let detail = summary.detailText {
+            Text(summary.previewText)
                 .font(.system(size: 15))
                 .foregroundStyle(detail == "GIF" ? .white : TelegramPalette.mutedText)
                 .lineLimit(1)
@@ -202,7 +205,7 @@ private struct ChatRow: View {
                 .foregroundStyle(TelegramPalette.mutedText)
                 .lineLimit(1)
         } else {
-            Text(thread.headline)
+            Text(summary.previewText)
                 .font(.system(size: 15))
                 .foregroundStyle(TelegramPalette.mutedText)
                 .lineLimit(2)
@@ -219,7 +222,7 @@ private struct ChatRow: View {
                     .foregroundStyle(.white)
             }
 
-            Text(thread.time)
+            Text(summary.timeText)
                 .font(.system(size: 14))
                 .foregroundStyle(TelegramPalette.mutedText)
         }
@@ -368,6 +371,31 @@ struct AvatarView: View {
                         .font(.system(size: 20, weight: .black))
                         .foregroundStyle(.white)
                 }
+        case .seminarCircle:
+            LinearGradient(colors: [Color(hex: 0x2B94FF), Color(hex: 0x6E5BFF)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                .overlay {
+                    ZStack {
+                        Circle()
+                            .fill(Color.white.opacity(0.95))
+                            .frame(width: 18, height: 18)
+                            .offset(x: -10, y: -4)
+                        Circle()
+                            .fill(Color.white.opacity(0.88))
+                            .frame(width: 18, height: 18)
+                            .offset(x: 10, y: -4)
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: 18, height: 18)
+                            .offset(y: 10)
+                    }
+                }
+        case .buildBoard:
+            LinearGradient(colors: [Color(hex: 0xFF8A57), Color(hex: 0xFF5252)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                .overlay {
+                    Image(systemName: "person.3.fill")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
         }
     }
 }
@@ -375,5 +403,6 @@ struct AvatarView: View {
 struct ChatsScreen_Previews: PreviewProvider {
     static var previews: some View {
         ChatsScreen { _ in }
+            .environmentObject(AIWorkspace())
     }
 }

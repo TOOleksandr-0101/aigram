@@ -4,9 +4,58 @@ struct AIGatewayScreen: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var aiWorkspace: AIWorkspace
 
+    private let presetModels: [(name: String, slug: String, badge: String)] = [
+        ("Claude 3.5 Sonnet", "anthropic/claude-3.5-sonnet", "Coding & Logic"),
+        ("GPT-4o", "openai/gpt-4o", "Universal"),
+        ("DeepSeek V3", "deepseek/deepseek-chat", "Fast & Low-cost"),
+        ("Llama 3.3 70B", "meta-llama/llama-3.3-70b-instruct", "Open Source"),
+        ("Qwen 3.5 9B", "qwen/qwen3.5-9b", "Default / Budget"),
+    ]
+
     var body: some View {
         DetailScreenContainer(title: "AI Gateway", backTitle: "Back", trailingTitle: "Done", dismissAction: { dismiss() }) {
             VStack(spacing: 22) {
+                lightGroup {
+                    sectionTitle("Popular Presets")
+
+                    VStack(spacing: 0) {
+                        ForEach(Array(presetModels.enumerated()), id: \.offset) { index, model in
+                            Button {
+                                aiWorkspace.modelSlug = model.slug
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(model.name)
+                                            .font(.system(size: 16, weight: .medium))
+                                            .foregroundStyle(TelegramPalette.settingsPrimaryText)
+                                        Text(model.badge)
+                                            .font(.system(size: 13))
+                                            .foregroundStyle(TelegramPalette.settingsSecondaryText)
+                                    }
+
+                                    Spacer()
+
+                                    if aiWorkspace.trimmedModelSlug == model.slug {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 14, weight: .bold))
+                                            .foregroundStyle(TelegramPalette.accentBlue)
+                                    }
+                                }
+                                .padding(.horizontal, 16)
+                                .frame(height: 52)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+
+                            if index < presetModels.count - 1 {
+                                divider
+                            }
+                        }
+                    }
+
+                    footerNote("Select one of the verified presets above or type a custom slug below.")
+                }
+
                 lightGroup {
                     sectionTitle("Connection")
 

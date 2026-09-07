@@ -7,8 +7,16 @@ struct OpenRouterConfiguration {
     let denyProviderLogging: Bool
 }
 
+private struct StoredConversationState: Codable {
+    var messages: [ConversationMessage]
+    var updatedAt: Date
+    var memoryNote: String
+}
+
 @MainActor
 final class AIWorkspace: ObservableObject {
+    private static let conversationSchemaVersion = 2
+
     @Published var displayName: String {
         didSet { defaults.set(displayName, forKey: Keys.displayName) }
     }
@@ -37,6 +45,10 @@ final class AIWorkspace: ObservableObject {
         didSet { defaults.set(denyProviderLogging, forKey: Keys.denyProviderLogging) }
     }
 
+    @Published private var storedConversations: [String: StoredConversationState] {
+        didSet { persistStoredConversations() }
+    }
+
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -48,6 +60,8 @@ final class AIWorkspace: ObservableObject {
         self.modelSlug = defaults.string(forKey: Keys.modelSlug) ?? "qwen/qwen3.5-9b"
         self.useZeroRetention = defaults.object(forKey: Keys.useZeroRetention) as? Bool ?? true
         self.denyProviderLogging = defaults.object(forKey: Keys.denyProviderLogging) as? Bool ?? true
+        self.storedConversations = Self.loadStoredConversations(from: defaults)
+        seedThreadsIfNeeded(ChatThread.sampleThreads)
     }
 
     var trimmedAPIKey: String {
@@ -90,6 +104,207 @@ final class AIWorkspace: ObservableObject {
             denyProviderLogging: denyProviderLogging
         )
     }
+
+    func ensureConversationExists(for thread: ChatThread) {
+        guard storedConversations[thread.id] == nil else { return }
+        let bootstrap = ConversationMessage.bootstrapConversation(for: thread)
+        storedConversations[thread.id] = makeStoredState(from: bootstrap, updatedAt: seedDate(for: thread))
+    }
+
+    func messages(for thread: ChatThread) -> [ConversationMessage] {
+        if let existing = storedConversations[thread.id]?.messages, existing.isEmpty == false {
+            return existing
+        }
+
+        return ConversationMessage.bootstrapConversation(for: thread)
+    }
+
+    func memoryNote(for thread: ChatThread) -> String {
+        storedConversations[thread.id]?.memoryNote ?? ""
+    }
+
+    func replaceMessages(_ messages: [ConversationMessage], for thread: ChatThread) {
+        storedConversations[thread.id] = makeStoredState(from: messages)
+    }
+
+    func appendMessage(_ message: ConversationMessage, to thread: ChatThread) {
+        var current = messages(for: thread)
+        current.append(message)
+        replaceMessages(current, for: thread)
+    }
+
+    func orderedSummaries(for baseThreads: [ChatThread]) -> [ChatThreadSummary] {
+        seedThreadsIfNeeded(baseThreads)
+        let indexedThreads = Array(baseThreads.enumerated())
+
+        return indexedThreads
+            .map { index, thread in
+                (
+                    index: index,
+                    summary: makeSummary(for: thread)
+                )
+            }
+            .sorted { lhs, rhs in
+                if lhs.summary.thread.isPinned != rhs.summary.thread.isPinned {
+                    return lhs.summary.thread.isPinned && rhs.summary.thread.isPinned == false
+                }
+
+                let lhsDate = storedConversations[lhs.summary.thread.id]?.updatedAt ?? .distantPast
+                let rhsDate = storedConversations[rhs.summary.thread.id]?.updatedAt ?? .distantPast
+
+                if lhsDate != rhsDate {
+                    return lhsDate > rhsDate
+                }
+
+                return lhs.index < rhs.index
+            }
+            .map(\.summary)
+    }
+
+    private func makeSummary(for thread: ChatThread) -> ChatThreadSummary {
+        guard let state = storedConversations[thread.id], let lastMessage = state.messages.last else {
+            return ChatThreadSummary(
+                thread: thread,
+                previewText: thread.headline,
+                detailText: thread.detail,
+                timeText: thread.time,
+                searchableText: [thread.title, thread.headline, thread.detail ?? "", thread.aiProfile.bio, thread.searchableParticipants].joined(separator: " ")
+            )
+        }
+
+        let preview = previewText(for: lastMessage)
+
+        return ChatThreadSummary(
+            thread: thread,
+            previewText: preview,
+            detailText: nil,
+            timeText: timeLabel(from: state.updatedAt),
+            searchableText: [thread.title, preview, state.memoryNote, thread.aiProfile.bio, thread.aiProfile.roleTitle, thread.searchableParticipants].joined(separator: " ")
+        )
+    }
+
+    private func makeStoredState(from messages: [ConversationMessage], updatedAt: Date = Date()) -> StoredConversationState {
+        StoredConversationState(
+            messages: messages,
+            updatedAt: updatedAt,
+            memoryNote: buildMemoryNote(from: messages)
+        )
+    }
+
+    private func buildMemoryNote(from messages: [ConversationMessage]) -> String {
+        let relevantLines = messages
+            .suffix(10)
+            .compactMap { message -> String? in
+                guard case let .text(text) = message.payload else { return nil }
+
+                let cleaned = text
+                    .replacingOccurrences(of: "\n", with: " ")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                guard cleaned.isEmpty == false else { return nil }
+
+                let prefix: String
+                if message.side == .incoming {
+                    let author = message.authorName ?? "assistant"
+                    prefix = "assistant(\(author))"
+                } else {
+                    prefix = "user"
+                }
+
+                return "\(prefix): \(String(cleaned.prefix(160)))"
+            }
+
+        return relevantLines.joined(separator: "\n")
+    }
+
+    private func previewText(for message: ConversationMessage) -> String {
+        let baseText: String
+        switch message.payload {
+        case let .text(text):
+            baseText = text.replacingOccurrences(of: "\n", with: " ")
+        case let .emoji(value):
+            baseText = value
+        case let .photo(name, _):
+            baseText = "Shared image: \(name)"
+        }
+
+        if let authorName = message.authorName, message.side == .incoming {
+            return "\(authorName): \(baseText)"
+        }
+
+        return baseText
+    }
+
+    private func timeLabel(from date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "HH:mm"
+            return formatter.string(from: date)
+        }
+
+        if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        }
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "E"
+        return formatter.string(from: date)
+    }
+
+    private func persistStoredConversations() {
+        guard let data = try? JSONEncoder().encode(storedConversations) else { return }
+        defaults.set(data, forKey: Keys.storedConversations)
+        defaults.set(Self.conversationSchemaVersion, forKey: Keys.conversationSchemaVersion)
+    }
+
+    private static func loadStoredConversations(from defaults: UserDefaults) -> [String: StoredConversationState] {
+        let storedVersion = defaults.integer(forKey: Keys.conversationSchemaVersion)
+        guard storedVersion == conversationSchemaVersion else {
+            defaults.removeObject(forKey: Keys.storedConversations)
+            defaults.set(conversationSchemaVersion, forKey: Keys.conversationSchemaVersion)
+            return [:]
+        }
+
+        guard let data = defaults.data(forKey: Keys.storedConversations),
+              let decoded = try? JSONDecoder().decode([String: StoredConversationState].self, from: data) else {
+            return [:]
+        }
+
+        return decoded
+    }
+
+    private func seedThreadsIfNeeded(_ threads: [ChatThread]) {
+        for thread in threads {
+            ensureConversationExists(for: thread)
+        }
+    }
+
+    private func seedDate(for thread: ChatThread) -> Date {
+        let calendar = Calendar.current
+        let now = Date()
+
+        switch thread.id {
+        case "memory-vault":
+            return calendar.date(byAdding: .day, value: -2, to: now) ?? now
+        case "design-scout":
+            return calendar.date(byAdding: .day, value: -1, to: now) ?? now
+        case "seminar-circle":
+            return calendar.date(byAdding: .hour, value: -18, to: now) ?? now
+        case "product-coach":
+            return calendar.date(byAdding: .minute, value: -90, to: now) ?? now
+        case "build-board":
+            return calendar.date(byAdding: .minute, value: -35, to: now) ?? now
+        case "research-desk":
+            return calendar.date(byAdding: .hour, value: -3, to: now) ?? now
+        case "visual-lab":
+            return calendar.date(byAdding: .hour, value: -5, to: now) ?? now
+        case "code-partner":
+            return calendar.date(byAdding: .day, value: -1, to: now) ?? now
+        default:
+            return now
+        }
+    }
 }
 
 private enum Keys {
@@ -100,4 +315,6 @@ private enum Keys {
     static let modelSlug = "aiworkspace.openrouter.modelSlug"
     static let useZeroRetention = "aiworkspace.openrouter.useZeroRetention"
     static let denyProviderLogging = "aiworkspace.openrouter.denyProviderLogging"
+    static let storedConversations = "aiworkspace.conversations.state"
+    static let conversationSchemaVersion = "aiworkspace.conversations.schemaVersion"
 }
