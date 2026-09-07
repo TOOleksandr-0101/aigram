@@ -156,6 +156,7 @@ struct DataStorageScreen: View {
 
 struct AppearanceScreen: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var aiWorkspace: AIWorkspace
     @State private var selectedTheme = "Night"
     @State private var textScale: Double = 0.58
     @State private var autoNightMode = false
@@ -178,6 +179,22 @@ struct AppearanceScreen: View {
                         }
                     }
                     .padding(.horizontal, 12)
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Chat Wallpaper")
+                        .font(.system(size: 14))
+                        .foregroundStyle(TelegramPalette.mutedText)
+                        .padding(.horizontal, 12)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(ChatWallpaperKind.allCases) { wp in
+                                wallpaperCard(wallpaper: wp, isSelected: aiWorkspace.selectedWallpaper == wp)
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
@@ -222,17 +239,77 @@ struct AppearanceScreen: View {
                 }
 
                 VStack(spacing: 0) {
-                    darkRow("Chat Background", value: nil)
+                    darkRow("Chat Background", value: aiWorkspace.selectedWallpaper.rawValue)
                     darkDivider
                     toggleRowDark("Auto-Night Mode", isOn: $autoNightMode)
                     darkDivider
-                    darkRow("Disabled", value: nil)
+                    darkRow("Performance Mode", value: "High FPS")
                 }
                 .background(TelegramPalette.backgroundElevated, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                 .padding(.horizontal, 12)
             }
             .padding(.top, 16)
             .padding(.bottom, 32)
+        }
+    }
+
+    private func wallpaperCard(wallpaper: ChatWallpaperKind, isSelected: Bool) -> some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            aiWorkspace.selectedWallpaper = wallpaper
+        } label: {
+            VStack(spacing: 8) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(wallpaperPreviewGradient(for: wallpaper))
+                        .frame(width: 80, height: 110)
+
+                    Image(systemName: wallpaper.icon)
+                        .font(.system(size: 24))
+                        .foregroundStyle(.white.opacity(0.85))
+
+                    if isSelected {
+                        VStack {
+                            Spacer()
+                            HStack {
+                                Spacer()
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(TelegramPalette.accentBlue)
+                                    .background(Circle().fill(.white))
+                                    .padding(6)
+                            }
+                        }
+                        .frame(width: 80, height: 110)
+                    }
+                }
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(isSelected ? TelegramPalette.accentBlue : Color.white.opacity(0.15), lineWidth: isSelected ? 2.5 : 1)
+                )
+
+                Text(wallpaper.rawValue)
+                    .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                    .foregroundStyle(isSelected ? .white : TelegramPalette.mutedText)
+                    .frame(width: 80)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func wallpaperPreviewGradient(for wallpaper: ChatWallpaperKind) -> LinearGradient {
+        switch wallpaper {
+        case .doodles:
+            return LinearGradient(colors: [Color(hex: 0x18181A), Color(hex: 0x0E0E10)], startPoint: .top, endPoint: .bottom)
+        case .obsidian:
+            return LinearGradient(colors: [Color.black, Color(hex: 0x111111)], startPoint: .top, endPoint: .bottom)
+        case .neon:
+            return LinearGradient(colors: [Color(hex: 0x05051F), Color(hex: 0x031B33)], startPoint: .top, endPoint: .bottom)
+        case .sunset:
+            return LinearGradient(colors: [Color(hex: 0x2A0826), Color(hex: 0x13041A)], startPoint: .top, endPoint: .bottom)
+        case .emerald:
+            return LinearGradient(colors: [Color(hex: 0x061D12), Color(hex: 0x020E08)], startPoint: .top, endPoint: .bottom)
         }
     }
 

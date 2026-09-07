@@ -1,4 +1,10 @@
 import SwiftUI
+import PhotosUI
+
+struct MediaItem: Identifiable {
+    var id: String { name }
+    let name: String
+}
 
 struct ChatConversationScreen: View {
     let thread: ChatThread
@@ -10,9 +16,14 @@ struct ChatConversationScreen: View {
     @State private var isSending = false
     @State private var currentTypingBotName: String?
     @State private var isCallPresented = false
-    @State private var showAttachmentDialog = false
+    @State private var showAttachmentSheet = false
+    @State private var selectedMediaName: String?
     @State private var isStickerSheetPresented = false
     @State private var inputMediaMode: InputMediaMode = .voice
+    @State private var isRecordingVoice = false
+    @State private var recordingSeconds = 0
+    @State private var recordDotBlink = false
+    @State private var recordingTimer: Task<Void, Never>?
     @State private var errorText: String?
     private let openRouterService = OpenRouterService()
 
@@ -44,6 +55,13 @@ struct ChatConversationScreen: View {
                                     aiWorkspace.deleteMessage(messageId: message.id, in: thread)
                                     messages = aiWorkspace.messages(for: thread)
                                 }
+                            },
+                            onTranscribe: {
+                                aiWorkspace.transcribeMessage(id: message.id, in: thread)
+                                messages = aiWorkspace.messages(for: thread)
+                            },
+                            onOpenMedia: { mediaName in
+                                selectedMediaName = mediaName
                             }
                         )
                         .id(message.id)
@@ -73,24 +91,63 @@ struct ChatConversationScreen: View {
             inputBar
         }
         .scrollContentBackground(.hidden)
-        .background(TelegramDoodleWallpaper().ignoresSafeArea())
+        .background(chatWallpaperView.ignoresSafeArea())
         .preferredColorScheme(.dark)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarHidden(true)
-        .navigationBarBackButtonHidden(true)
         .task {
             loadConversationIfNeeded()
         }
-        .confirmationDialog("Send Attachment", isPresented: $showAttachmentDialog) {
-            Button("Send System Architecture Mockup") {
-                aiWorkspace.sendAttachment(name: "Architecture_V2.png", size: "2.4 MB", to: thread)
+        .onReceive(aiWorkspace.objectWillChange) { _ in
+            DispatchQueue.main.async {
                 messages = aiWorkspace.messages(for: thread)
             }
-            Button("Send UI Wireframe Review") {
-                aiWorkspace.sendAttachment(name: "Wireframe_Screen.png", size: "1.1 MB", to: thread)
-                messages = aiWorkspace.messages(for: thread)
+        }
+        .onAppear {
+            if ProcessInfo.processInfo.arguments.contains("-showAttachment") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    showAttachmentSheet = true
+                }
             }
-            Button("Cancel", role: .cancel) { }
+            if ProcessInfo.processInfo.arguments.contains("-testTranscribe") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    if let msg = messages.first(where: { $0.isTranscribable }) {
+                        aiWorkspace.transcribeMessage(id: msg.id, in: thread)
+                        messages = aiWorkspace.messages(for: thread)
+                    }
+                }
+            }
+            if ProcessInfo.processInfo.arguments.contains("-testTranscribeVideo") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    if let msg = messages.first(where: { $0.isVideoNote }) {
+                        aiWorkspace.transcribeMessage(id: msg.id, in: thread)
+                        messages = aiWorkspace.messages(for: thread)
+                    }
+                }
+            }
+            if ProcessInfo.processInfo.arguments.contains("-testRecording") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    startRecordingVoice()
+                }
+            }
+        }
+        .sheet(isPresented: $showAttachmentSheet) {
+            AttachmentPickerSheet(
+                onSendPhoto: { name in
+                    aiWorkspace.sendPhoto(name: name, to: thread)
+                    messages = aiWorkspace.messages(for: thread)
+                },
+                onSendFile: { name, size in
+                    aiWorkspace.sendAttachment(name: name, size: size, to: thread)
+                    messages = aiWorkspace.messages(for: thread)
+                }
+            )
+        }
+        .fullScreenCover(item: Binding(
+            get: { selectedMediaName.map { MediaItem(name: $0) } },
+            set: { selectedMediaName = $0?.name }
+        )) { item in
+            MediaViewerModal(name: item.name)
         }
         .fullScreenCover(isPresented: $isCallPresented) {
             TelegramCallView(
@@ -193,9 +250,83 @@ struct ChatConversationScreen: View {
 
     private var inputBar: some View {
         HStack(spacing: 8) {
+            if isRecordingVoice {
+                recordingInputBar
+            } else {
+                normalInputBar
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.top, 10)
+        .padding(.bottom, 14)
+        .background(TelegramPalette.backgroundElevated)
+        .overlay(alignment: .top) {
+            if let errorText {
+                Text(errorText)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color(hex: 0xFFB4AE))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Color(hex: 0x521717), in: Capsule(style: .continuous))
+                    .padding(.top, -18)
+            }
+        }
+    }
+
+    private var recordingInputBar: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Color(hex: 0xFF3B30))
+                    .frame(width: 10, height: 10)
+                    .opacity(recordDotBlink ? 1.0 : 0.3)
+                    .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true), value: recordDotBlink)
+
+                Text(String(format: "0:0%d", recordingSeconds))
+                    .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.white)
+            }
+
+            HStack(spacing: 3) {
+                ForEach(0..<12, id: \.self) { idx in
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(TelegramPalette.skyBlue)
+                        .frame(width: 2.5, height: CGFloat([8, 18, 12, 24, 10, 16, 22, 14, 20, 8, 16, 12][idx]))
+                }
+            }
+            .frame(height: 24)
+
+            Spacer()
+
+            Button {
+                cancelRecordingVoice()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.left")
+                    Text("Cancel")
+                }
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(TelegramPalette.mutedText)
+            }
+
+            Button {
+                finishRecordingVoice()
+            } label: {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 32))
+                    .foregroundStyle(TelegramPalette.skyBlue)
+            }
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 40)
+        .background(Color.white.opacity(0.12), in: Capsule(style: .continuous))
+    }
+
+    private var normalInputBar: some View {
+        Group {
             HStack(spacing: 8) {
                 Button {
-                    showAttachmentDialog = true
+                    showAttachmentSheet = true
                 } label: {
                     Image(systemName: "paperclip")
                         .font(.system(size: 19))
@@ -221,7 +352,11 @@ struct ChatConversationScreen: View {
 
             if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Button {
-                    handleMediaTap()
+                    if inputMediaMode == .voice {
+                        startRecordingVoice()
+                    } else {
+                        handleMediaTap()
+                    }
                 } label: {
                     Image(systemName: inputMediaMode == .voice ? "mic.fill" : "camera.fill")
                         .font(.system(size: 18, weight: .semibold))
@@ -234,9 +369,9 @@ struct ChatConversationScreen: View {
                 }
                 .contextMenu {
                     Button {
-                        sendVoiceNote()
+                        startRecordingVoice()
                     } label: {
-                        Label("Send Voice Message", systemImage: "mic.fill")
+                        Label("Record Voice Message", systemImage: "mic.fill")
                     }
 
                     Button {
@@ -266,21 +401,49 @@ struct ChatConversationScreen: View {
                 .disabled(canSend == false)
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.top, 10)
-        .padding(.bottom, 14)
-        .background(TelegramPalette.backgroundElevated)
-        .overlay(alignment: .top) {
-            if let errorText {
-                Text(errorText)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Color(hex: 0xFFB4AE))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(Color(hex: 0x521717), in: Capsule(style: .continuous))
-                    .padding(.top, -18)
+    }
+
+    private func startRecordingVoice() {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            isRecordingVoice = true
+            recordingSeconds = 0
+            recordDotBlink = true
+        }
+        recordingTimer?.cancel()
+        recordingTimer = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                if Task.isCancelled { break }
+                await MainActor.run {
+                    recordingSeconds += 1
+                }
             }
         }
+    }
+
+    private func cancelRecordingVoice() {
+        recordingTimer?.cancel()
+        recordingTimer = nil
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            isRecordingVoice = false
+            recordingSeconds = 0
+        }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    private func finishRecordingVoice() {
+        recordingTimer?.cancel()
+        recordingTimer = nil
+        let sec = max(1, recordingSeconds)
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            isRecordingVoice = false
+            recordingSeconds = 0
+        }
+        let durationText = String(format: "0:0%d", min(sec, 9))
+        aiWorkspace.sendVoiceMessage(duration: durationText, to: thread)
+        messages = aiWorkspace.messages(for: thread)
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 
     private func handleMediaTap() {
@@ -303,19 +466,38 @@ struct ChatConversationScreen: View {
         messages = aiWorkspace.messages(for: thread)
     }
 
-    private var chatBackground: some View {
-        LinearGradient(
-            colors: [Color(hex: 0x18181A), Color(hex: 0x0C0C0D)],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .overlay {
-            VStack {
-                Spacer()
-                Circle()
-                    .fill(Color.white.opacity(0.03))
-                    .frame(width: 280, height: 280)
-                    .offset(x: 120, y: 80)
+    @ViewBuilder
+    private var chatWallpaperView: some View {
+        switch aiWorkspace.selectedWallpaper {
+        case .doodles:
+            TelegramDoodleWallpaper()
+        case .obsidian:
+            Color.black
+        case .neon:
+            ZStack {
+                Color(hex: 0x050518)
+                RadialGradient(
+                    colors: [Color(hex: 0x0066FF).opacity(0.28), Color.clear],
+                    center: .topTrailing,
+                    startRadius: 40,
+                    endRadius: 450
+                )
+            }
+        case .sunset:
+            LinearGradient(
+                colors: [Color(hex: 0x240A22), Color(hex: 0x0E030E)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .emerald:
+            ZStack {
+                Color(hex: 0x04130A)
+                RadialGradient(
+                    colors: [Color(hex: 0x00E676).opacity(0.18), Color.clear],
+                    center: .bottomLeading,
+                    startRadius: 50,
+                    endRadius: 460
+                )
             }
         }
     }
@@ -510,6 +692,8 @@ private struct MessageBubble: View {
     let isGroupThread: Bool
     let onReact: (String) -> Void
     let onDelete: () -> Void
+    let onTranscribe: () -> Void
+    let onOpenMedia: (String) -> Void
 
     var body: some View {
         HStack {
@@ -523,6 +707,10 @@ private struct MessageBubble: View {
                     duration: duration,
                     time: message.time,
                     isOutgoing: message.side == .outgoing,
+                    transcription: message.transcription,
+                    isTranscribing: message.isTranscribing,
+                    isTranscribed: message.isTranscribed,
+                    onTranscribe: onTranscribe,
                     onReact: onReact,
                     onDelete: onDelete
                 )
@@ -535,6 +723,37 @@ private struct MessageBubble: View {
                     onReact: onReact,
                     onDelete: onDelete
                 )
+            case let .photo(name, size):
+                PhotoMessageBubble(
+                    name: name,
+                    size: size,
+                    time: message.time,
+                    isOutgoing: message.side == .outgoing,
+                    onTap: { onOpenMedia(name) }
+                )
+                .contextMenu {
+                    Button {
+                        onReact("❤️")
+                    } label: {
+                        Label("Heart ❤️", systemImage: "heart")
+                    }
+                    Button {
+                        onReact("🔥")
+                    } label: {
+                        Label("Fire 🔥", systemImage: "flame")
+                    }
+                    Divider()
+                    Button {
+                        onOpenMedia(name)
+                    } label: {
+                        Label("View Fullscreen", systemImage: "arrow.up.left.and.arrow.down.right")
+                    }
+                    Button(role: .destructive) {
+                        onDelete()
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
             default:
                 content
                     .padding(.horizontal, 12)
@@ -639,7 +858,11 @@ private struct MessageBubble: View {
                 duration: duration,
                 time: message.time,
                 isOutgoing: message.side == .outgoing,
-                foregroundColor: foregroundColor
+                foregroundColor: foregroundColor,
+                transcription: message.transcription,
+                isTranscribing: message.isTranscribing,
+                isTranscribed: message.isTranscribed,
+                onTranscribe: onTranscribe
             )
         case let .emoji(value):
             VStack(alignment: message.side == .outgoing ? .trailing : .leading, spacing: 5) {
@@ -1036,56 +1259,99 @@ private struct VoiceMessageBubble: View {
     let time: String
     let isOutgoing: Bool
     let foregroundColor: Color
+    let transcription: String?
+    let isTranscribing: Bool
+    let isTranscribed: Bool
+    let onTranscribe: () -> Void
 
     @State private var isPlaying = false
     @State private var playbackProgress: CGFloat = 0.0
     @State private var animatedHeights: [CGFloat] = [10, 20, 14, 26, 12, 18, 8, 22, 16, 10, 14, 20, 12, 8]
 
     var body: some View {
-        HStack(spacing: 10) {
-            Button {
-                togglePlayback()
-            } label: {
-                Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 16))
-                    .foregroundStyle(foregroundColor)
-                    .frame(width: 36, height: 36)
-                    .background(Color.white.opacity(0.18), in: Circle())
-            }
-            .buttonStyle(.plain)
-
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 2) {
-                    ForEach(0 ..< animatedHeights.count, id: \.self) { idx in
-                        RoundedRectangle(cornerRadius: 1.5)
-                            .fill(
-                                CGFloat(idx) / CGFloat(animatedHeights.count) <= playbackProgress ?
-                                    foregroundColor : foregroundColor.opacity(0.4)
-                            )
-                            .frame(width: 2.5, height: animatedHeights[idx])
-                            .animation(.easeInOut(duration: 0.15), value: animatedHeights[idx])
-                    }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Button {
+                    togglePlayback()
+                } label: {
+                    Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(foregroundColor)
+                        .frame(width: 36, height: 36)
+                        .background(Color.white.opacity(0.18), in: Circle())
                 }
-                .frame(height: 28)
+                .buttonStyle(.plain)
 
-                HStack(spacing: 4) {
-                    Text(isPlaying ? String(format: "0:0%d", Int(playbackProgress * 4)) : duration)
-                        .font(.system(size: 11, weight: .medium))
-                    Spacer()
-                    Text(time)
-                        .font(.system(size: 11))
-                    if isOutgoing {
-                        HStack(spacing: -3) {
-                            Image(systemName: "checkmark")
-                            Image(systemName: "checkmark")
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 2) {
+                        ForEach(0 ..< animatedHeights.count, id: \.self) { idx in
+                            RoundedRectangle(cornerRadius: 1.5)
+                                .fill(
+                                    CGFloat(idx) / CGFloat(animatedHeights.count) <= playbackProgress ?
+                                        foregroundColor : foregroundColor.opacity(0.4)
+                                )
+                                .frame(width: 2.5, height: animatedHeights[idx])
+                                .animation(.easeInOut(duration: 0.15), value: animatedHeights[idx])
                         }
-                        .font(.system(size: 9, weight: .bold))
                     }
+                    .frame(height: 28)
+
+                    HStack(spacing: 4) {
+                        Text(isPlaying ? String(format: "0:0%d", Int(playbackProgress * 4)) : duration)
+                            .font(.system(size: 11, weight: .medium))
+                        Spacer()
+                        Text(time)
+                            .font(.system(size: 11))
+                        if isOutgoing {
+                            HStack(spacing: -3) {
+                                Image(systemName: "checkmark")
+                                Image(systemName: "checkmark")
+                            }
+                            .font(.system(size: 9, weight: .bold))
+                        }
+                    }
+                    .foregroundStyle(foregroundColor.opacity(0.75))
                 }
-                .foregroundStyle(foregroundColor.opacity(0.75))
+
+                Button {
+                    onTranscribe()
+                } label: {
+                    Text("→A")
+                        .font(.system(size: 10, weight: .black))
+                        .foregroundStyle(isTranscribed ? Color.black : Color.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                        .background(
+                            isTranscribed ? Color.white : TelegramPalette.accentBlue,
+                            in: Capsule()
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+
+            if isTranscribing {
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .scaleEffect(0.65)
+                    Text("Transcribing speech...")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(foregroundColor.opacity(0.8))
+                }
+                .padding(.top, 2)
+            } else if isTranscribed, let text = transcription {
+                VStack(alignment: .leading, spacing: 4) {
+                    Rectangle()
+                        .fill(foregroundColor.opacity(0.18))
+                        .frame(height: 0.5)
+                    Text(text)
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundStyle(foregroundColor.opacity(0.95))
+                        .padding(.top, 2)
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .frame(minWidth: 175)
+        .frame(minWidth: 195)
     }
 
     private func togglePlayback() {
@@ -1122,6 +1388,10 @@ private struct VideoNoteBubble: View {
     let duration: String
     let time: String
     let isOutgoing: Bool
+    let transcription: String?
+    let isTranscribing: Bool
+    let isTranscribed: Bool
+    let onTranscribe: () -> Void
     let onReact: (String) -> Void
     let onDelete: () -> Void
 
@@ -1130,131 +1400,175 @@ private struct VideoNoteBubble: View {
     @State private var animationTimer: Task<Void, Never>?
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color(hex: 0x1A2332),
-                                Color(hex: 0x0F172A),
-                                Color(hex: 0x1E293B)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-
+        VStack(alignment: isOutgoing ? .trailing : .leading, spacing: 6) {
+            ZStack(alignment: .bottomTrailing) {
                 ZStack {
-                    Image(systemName: isOutgoing ? "person.crop.circle.fill" : "sparkles")
-                        .font(.system(size: 76))
-                        .foregroundStyle(
+                    Circle()
+                        .fill(
                             LinearGradient(
-                                colors: [Color(hex: 0x60A5FA), Color(hex: 0xA855F7)],
+                                colors: [
+                                    Color(hex: 0x1A2332),
+                                    Color(hex: 0x0F172A),
+                                    Color(hex: 0x1E293B)
+                                ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .scaleEffect(isPlaying ? 1.08 : 1.0)
-                        .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isPlaying)
+
+                    ZStack {
+                        Image(systemName: isOutgoing ? "person.crop.circle.fill" : "sparkles")
+                            .font(.system(size: 76))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [Color(hex: 0x60A5FA), Color(hex: 0xA855F7)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .scaleEffect(isPlaying ? 1.08 : 1.0)
+                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isPlaying)
+
+                        Circle()
+                            .stroke(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.18), Color.clear],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                                lineWidth: 1
+                            )
+                    }
+
+                    if !isPlaying {
+                        Circle()
+                            .fill(Color.black.opacity(0.55))
+                            .frame(width: 54, height: 54)
+                            .overlay {
+                                Image(systemName: "play.fill")
+                                    .font(.system(size: 22))
+                                    .foregroundStyle(.white)
+                                    .offset(x: 2)
+                            }
+                            .transition(.scale.combined(with: .opacity))
+                    }
 
                     Circle()
+                        .stroke(Color.white.opacity(0.15), lineWidth: 3.5)
+                        .frame(width: 196, height: 196)
+
+                    Circle()
+                        .trim(from: 0, to: isPlaying ? progress : 1.0)
                         .stroke(
                             LinearGradient(
-                                colors: [Color.white.opacity(0.18), Color.clear],
-                                startPoint: .top,
-                                endPoint: .bottom
+                                colors: [TelegramPalette.skyBlue, Color(hex: 0x60A5FA)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
                             ),
-                            lineWidth: 1
+                            style: StrokeStyle(lineWidth: 3.5, lineCap: .round)
                         )
+                        .frame(width: 196, height: 196)
+                        .rotationEffect(.degrees(-90))
+                        .animation(.linear(duration: 0.2), value: progress)
+                }
+                .frame(width: 200, height: 200)
+                .clipShape(Circle())
+                .shadow(color: Color.black.opacity(0.4), radius: 10, y: 5)
+                .onTapGesture {
+                    togglePlayback()
                 }
 
-                if !isPlaying {
-                    Circle()
-                        .fill(Color.black.opacity(0.55))
-                        .frame(width: 54, height: 54)
-                        .overlay {
-                            Image(systemName: "play.fill")
-                                .font(.system(size: 22))
-                                .foregroundStyle(.white)
-                                .offset(x: 2)
+                // Top right corner →A transcribe button
+                VStack {
+                    HStack {
+                        Spacer()
+                        Button {
+                            onTranscribe()
+                        } label: {
+                            Text("→A")
+                                .font(.system(size: 10, weight: .black))
+                                .foregroundStyle(isTranscribed ? Color.black : Color.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 4)
+                                .background(isTranscribed ? Color.white : TelegramPalette.accentBlue, in: Capsule())
+                                .shadow(radius: 4)
                         }
-                        .transition(.scale.combined(with: .opacity))
-                }
-
-                Circle()
-                    .stroke(Color.white.opacity(0.15), lineWidth: 3.5)
-                    .frame(width: 196, height: 196)
-
-                Circle()
-                    .trim(from: 0, to: isPlaying ? progress : 1.0)
-                    .stroke(
-                        LinearGradient(
-                            colors: [TelegramPalette.skyBlue, Color(hex: 0x60A5FA)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        style: StrokeStyle(lineWidth: 3.5, lineCap: .round)
-                    )
-                    .frame(width: 196, height: 196)
-                    .rotationEffect(.degrees(-90))
-                    .animation(.linear(duration: 0.2), value: progress)
-            }
-            .frame(width: 200, height: 200)
-            .clipShape(Circle())
-            .shadow(color: Color.black.opacity(0.4), radius: 10, y: 5)
-            .onTapGesture {
-                togglePlayback()
-            }
-
-            HStack(spacing: 4) {
-                if isPlaying {
-                    Circle()
-                        .fill(Color(hex: 0x34D399))
-                        .frame(width: 6, height: 6)
-                }
-
-                Text(isPlaying ? String(format: "0:0%d", Int(progress * 4)) : duration)
-                    .font(.system(size: 11, weight: .semibold))
-
-                Text(time)
-                    .font(.system(size: 10))
-
-                if isOutgoing {
-                    HStack(spacing: -3) {
-                        Image(systemName: "checkmark")
-                        Image(systemName: "checkmark")
+                        .padding(8)
                     }
-                    .font(.system(size: 9, weight: .bold))
+                    Spacer()
+                }
+                .frame(width: 200, height: 200)
+
+                HStack(spacing: 4) {
+                    if isPlaying {
+                        Circle()
+                            .fill(Color(hex: 0x34D399))
+                            .frame(width: 6, height: 6)
+                    }
+
+                    Text(isPlaying ? String(format: "0:0%d", Int(progress * 4)) : duration)
+                        .font(.system(size: 11, weight: .semibold))
+
+                    Text(time)
+                        .font(.system(size: 10))
+
+                    if isOutgoing {
+                        HStack(spacing: -3) {
+                            Image(systemName: "checkmark")
+                            Image(systemName: "checkmark")
+                        }
+                        .font(.system(size: 9, weight: .bold))
+                    }
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.black.opacity(0.65), in: Capsule())
+                .padding(6)
+            }
+            .contextMenu {
+                Button {
+                    onReact("❤️")
+                } label: {
+                    Label("Heart ❤️", systemImage: "heart")
+                }
+                Button {
+                    onReact("🔥")
+                } label: {
+                    Label("Fire 🔥", systemImage: "flame")
+                }
+                Button {
+                    onReact("👏")
+                } label: {
+                    Label("Clap 👏", systemImage: "hands.clap")
+                }
+                Divider()
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Label("Delete Video Note", systemImage: "trash")
                 }
             }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color.black.opacity(0.65), in: Capsule())
-            .padding(6)
-        }
-        .contextMenu {
-            Button {
-                onReact("❤️")
-            } label: {
-                Label("Heart ❤️", systemImage: "heart")
-            }
-            Button {
-                onReact("🔥")
-            } label: {
-                Label("Fire 🔥", systemImage: "flame")
-            }
-            Button {
-                onReact("👏")
-            } label: {
-                Label("Clap 👏", systemImage: "hands.clap")
-            }
-            Divider()
-            Button(role: .destructive) {
-                onDelete()
-            } label: {
-                Label("Delete Video Note", systemImage: "trash")
+
+            if isTranscribing {
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .scaleEffect(0.65)
+                    Text("Transcribing speech...")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Color.black.opacity(0.7), in: Capsule())
+            } else if isTranscribed, let text = transcription {
+                Text(text)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .frame(maxWidth: 220, alignment: isOutgoing ? .trailing : .leading)
             }
         }
     }
@@ -1519,5 +1833,362 @@ private struct StickerEmojiSheet: View {
         .background(TelegramPalette.backgroundElevated.ignoresSafeArea())
         .presentationDetents([.fraction(0.55), .large])
         .presentationDragIndicator(.hidden)
+    }
+}
+
+// MARK: - Photo Message Bubble
+private struct PhotoMessageBubble: View {
+    let name: String
+    let size: String
+    let time: String
+    let isOutgoing: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            ZStack(alignment: .bottomTrailing) {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(photoGradient(for: name))
+                    .frame(width: 230, height: 160)
+                    .overlay {
+                        VStack(spacing: 8) {
+                            Image(systemName: photoIcon(for: name))
+                                .font(.system(size: 44, weight: .light))
+                                .foregroundStyle(.white.opacity(0.9))
+                            Text(name)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                                .padding(.horizontal, 16)
+                            Text(size)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.white.opacity(0.75))
+                        }
+                    }
+
+                // Time & Checkmark overlay pill
+                HStack(spacing: 4) {
+                    Text(time)
+                        .font(.system(size: 11, weight: .medium))
+
+                    if isOutgoing {
+                        HStack(spacing: -3) {
+                            Image(systemName: "checkmark")
+                            Image(systemName: "checkmark")
+                        }
+                        .font(.system(size: 9, weight: .bold))
+                    }
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.black.opacity(0.55), in: Capsule())
+                .padding(8)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .shadow(color: Color.black.opacity(0.3), radius: 8, y: 4)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func photoIcon(for name: String) -> String {
+        if name.contains("Architecture") { return "server.rack" }
+        if name.contains("Wireframe") { return "rectangle.split.3x3" }
+        if name.contains("Design") { return "paintbrush.pointed.fill" }
+        if name.contains("Dashboard") { return "chart.bar.xaxis" }
+        return "photo.fill"
+    }
+
+    private func photoGradient(for name: String) -> LinearGradient {
+        if name.contains("Architecture") {
+            return LinearGradient(colors: [Color(hex: 0x1E3A8A), Color(hex: 0x3B82F6)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
+        if name.contains("Wireframe") {
+            return LinearGradient(colors: [Color(hex: 0x4C1D95), Color(hex: 0x8B5CF6)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
+        if name.contains("Design") {
+            return LinearGradient(colors: [Color(hex: 0x831843), Color(hex: 0xEC4899)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
+        return LinearGradient(colors: [Color(hex: 0x064E3B), Color(hex: 0x10B981)], startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+}
+
+// MARK: - Fullscreen Media Viewer Modal
+private struct MediaViewerModal: View {
+    let name: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var scale: CGFloat = 1.0
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // Top Bar
+                HStack {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 38, height: 38)
+                            .background(Color.white.opacity(0.12), in: Circle())
+                    }
+
+                    Spacer()
+
+                    VStack(spacing: 2) {
+                        Text(name)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white)
+                        Text("AIGram Media")
+                            .font(.system(size: 12))
+                            .foregroundStyle(TelegramPalette.mutedText)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 38, height: 38)
+                            .background(Color.white.opacity(0.12), in: Circle())
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+
+                Spacer()
+
+                // High-res preview container
+                ZStack {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(hex: 0x1E293B), Color(hex: 0x0F172A)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 380)
+
+                    VStack(spacing: 16) {
+                        Image(systemName: "photo.artframe")
+                            .font(.system(size: 80, weight: .ultraLight))
+                            .foregroundStyle(TelegramPalette.skyBlue)
+
+                        Text(name)
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundStyle(.white)
+
+                        Text("High-Definition Asset Preview")
+                            .font(.system(size: 14))
+                            .foregroundStyle(TelegramPalette.mutedText)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .scaleEffect(scale)
+                .gesture(
+                    MagnificationGesture()
+                        .onChanged { val in scale = val }
+                        .onEnded { _ in withAnimation(.spring()) { scale = 1.0 } }
+                )
+
+                Spacer()
+
+                // Bottom actions
+                HStack(spacing: 40) {
+                    Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    } label: {
+                        VStack(spacing: 4) {
+                            Image(systemName: "arrow.down.to.line")
+                                .font(.system(size: 20))
+                            Text("Save")
+                                .font(.system(size: 12))
+                        }
+                        .foregroundStyle(.white)
+                    }
+
+                    Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    } label: {
+                        VStack(spacing: 4) {
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.system(size: 20))
+                            Text("Edit")
+                                .font(.system(size: 12))
+                        }
+                        .foregroundStyle(.white)
+                    }
+
+                    Button {
+                        dismiss()
+                    } label: {
+                        VStack(spacing: 4) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 20))
+                            Text("Delete")
+                                .font(.system(size: 12))
+                        }
+                        .foregroundStyle(Color(hex: 0xFF453A))
+                    }
+                }
+                .padding(.bottom, 36)
+            }
+        }
+    }
+}
+
+// MARK: - Attachment Picker Sheet
+private struct AttachmentPickerSheet: View {
+    let onSendPhoto: (String) -> Void
+    let onSendFile: (String, String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedPhotoPickerItem: PhotosPickerItem?
+
+    private let sampleGalleryPhotos: [(title: String, icon: String, color: Color)] = [
+        ("Architecture_V2.png", "server.rack", Color(hex: 0x3B82F6)),
+        ("Wireframe_Screen.png", "rectangle.split.3x3", Color(hex: 0x8B5CF6)),
+        ("Design_Tokens.png", "paintbrush.pointed.fill", Color(hex: 0xEC4899)),
+        ("Dashboard_Metrics.png", "chart.bar.xaxis", Color(hex: 0x10B981)),
+        ("AI_Cluster_Map.png", "cpu.fill", Color(hex: 0xF59E0B)),
+        ("Mobile_Mockup.png", "iphone", Color(hex: 0x06B6D4))
+    ]
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Capsule()
+                .fill(Color.white.opacity(0.25))
+                .frame(width: 36, height: 5)
+                .padding(.top, 10)
+
+            HStack {
+                Text("Share Content")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(.white)
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(TelegramPalette.mutedText)
+                }
+            }
+            .padding(.horizontal, 20)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("RECENT MEDIA")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(TelegramPalette.mutedText)
+                    .padding(.horizontal, 20)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(sampleGalleryPhotos, id: \.title) { item in
+                            Button {
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                onSendPhoto(item.title)
+                                dismiss()
+                            } label: {
+                                ZStack(alignment: .bottomLeading) {
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .fill(item.color.opacity(0.3))
+                                        .frame(width: 110, height: 110)
+                                        .overlay {
+                                            Image(systemName: item.icon)
+                                                .font(.system(size: 32))
+                                                .foregroundStyle(item.color)
+                                        }
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(item.title)
+                                            .font(.system(size: 10, weight: .semibold))
+                                            .lineLimit(1)
+                                            .foregroundStyle(.white)
+                                    }
+                                    .padding(8)
+                                    .frame(width: 110, alignment: .leading)
+                                    .background(Color.black.opacity(0.65))
+                                }
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+            }
+
+            VStack(spacing: 16) {
+                HStack(spacing: 24) {
+                    PhotosPicker(selection: $selectedPhotoPickerItem, matching: .images) {
+                        attachmentActionItem(title: "Gallery", icon: "photo.on.rectangle.angled", color: Color(hex: 0x0A84FF))
+                    }
+                    .onChange(of: selectedPhotoPickerItem) { _ in
+                        if selectedPhotoPickerItem != nil {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            onSendPhoto("User_Photo_\(Int.random(in: 100...999)).jpg")
+                            dismiss()
+                        }
+                    }
+
+                    Button {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        onSendFile("Spec_Sheet_v2.pdf", "4.2 MB")
+                        dismiss()
+                    } label: {
+                        attachmentActionItem(title: "File", icon: "doc.fill", color: Color(hex: 0x30B0C7))
+                    }
+
+                    Button {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        onSendFile("San_Francisco_HQ.loc", "GPS Data")
+                        dismiss()
+                    } label: {
+                        attachmentActionItem(title: "Location", icon: "location.fill", color: Color(hex: 0x34C759))
+                    }
+
+                    Button {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        onSendFile("Team_Consensus_Vote.poll", "Active Poll")
+                        dismiss()
+                    } label: {
+                        attachmentActionItem(title: "Poll", icon: "chart.bar.fill", color: Color(hex: 0xFF9500))
+                    }
+                }
+            }
+            .padding(.top, 8)
+            .padding(.bottom, 24)
+        }
+        .presentationDetents([.height(340)])
+        .background(TelegramPalette.backgroundElevated.ignoresSafeArea())
+    }
+
+    private func attachmentActionItem(title: String, icon: String, color: Color) -> some View {
+        VStack(spacing: 8) {
+            Circle()
+                .fill(color)
+                .frame(width: 56, height: 56)
+                .overlay {
+                    Image(systemName: icon)
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundStyle(.white)
+                }
+            Text(title)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.white)
+        }
     }
 }

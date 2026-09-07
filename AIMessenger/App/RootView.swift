@@ -23,6 +23,9 @@ struct RootView: View {
         .background(TelegramPalette.backgroundPrimary.ignoresSafeArea())
         .preferredColorScheme(.dark)
         .environmentObject(aiWorkspace)
+        .onAppear {
+            handleLaunchArguments()
+        }
     }
 
     @ViewBuilder
@@ -125,6 +128,23 @@ struct RootView: View {
             return chatsPath.isEmpty
         case .settings:
             return settingsPath.isEmpty
+        }
+    }
+
+    private func handleLaunchArguments() {
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-openDesignScout") {
+            if let thread = aiWorkspace.threads.first(where: { $0.id == "design-scout" }) ?? aiWorkspace.threads.first {
+                selectedTab = .chats
+                chatsPath = [.conversation(thread)]
+            }
+        } else if args.contains("-openSettings") {
+            selectedTab = .settings
+        } else if args.contains("-openAppearance") {
+            selectedTab = .settings
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                settingsPath = [.appearance]
+            }
         }
     }
 }

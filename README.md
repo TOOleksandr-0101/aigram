@@ -25,17 +25,40 @@ The app is built natively with **SwiftUI** and connects directly to **OpenRouter
 <p align="center">
   <img src="docs/screenshots/aimessenger-stories-and-folders.png" width="31%" alt="AIGram Chats with Stories & Folders" />
   <img src="docs/screenshots/aimessenger-video-notes-and-stickers.png" width="31%" alt="AIGram Video Notes & Stickers" />
-  <img src="docs/screenshots/aimessenger-story-viewer.png" width="31%" alt="AIGram Story Viewer" />
+  <img src="docs/screenshots/aigram-attachment-sheet.png" width="31%" alt="AIGram Media Attachment Sheet" />
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/aimessenger-telegram-settings.png" width="48%" alt="AIGram Dark Settings & Premium" />
-  <img src="docs/screenshots/aimessenger-qr-share.png" width="48%" alt="AIGram QR Code Profile Share Sheet" />
+  <img src="docs/screenshots/aigram-video-transcription.png" width="31%" alt="AIGram Voice & Video Note Transcription" />
+  <img src="docs/screenshots/aigram-voice-recording.png" width="31%" alt="AIGram Voice Recording Waveform Bar" />
+  <img src="docs/screenshots/aigram-appearance-wallpaper.png" width="31%" alt="AIGram Appearance & Chat Wallpapers" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/aimessenger-story-viewer.png" width="31%" alt="AIGram Story Viewer" />
+  <img src="docs/screenshots/aimessenger-telegram-settings.png" width="31%" alt="AIGram Dark Settings & Premium" />
+  <img src="docs/screenshots/aimessenger-qr-share.png" width="31%" alt="AIGram QR Code Profile Share Sheet" />
 </p>
 
 ---
 
 ## 🚀 Key Features
+
+* **📎 Interactive Attachment Sheet & Media Viewer**:
+  * Bottom sheet with horizontal Recent Media gallery carousel and quick actions: **Gallery**, **File**, **Location**, **Poll**.
+  * Native photo picker integration, media bubbles with preview thumbnails and file sizes, plus full-screen zoomable media modal.
+
+* **🎙️→🅰️ Speech-to-Text Transcription (`→A`)**:
+  * Telegram-style `→A` button on both audio messages and circular video notes.
+  * Real-time transcription simulation with animated progress spinner, expanding into readable transcribed speech below the bubble.
+
+* **🔴 Gesture-Driven Voice Recording**:
+  * Live recording bar with pulsing red indicator (`● REC 0:02`), active audio waveforms, and slide-to-cancel / send actions.
+  * Tactile haptic feedback on touch start, cancel, and message transmission.
+
+* **🎨 Dynamic Chat Wallpapers & Appearance Customizer**:
+  * 5 selectable chat wallpapers: **Dark Doodles**, **Midnight Pure**, **Cyber Neon**, **Sunset Velvet**, and **Emerald Matrix**.
+  * Dynamic real-time wallpaper switching with persistence across app launches.
 
 * **🎥 Circular Video Notes («Кружочки»)**:
   * Circular video bubbles with live radial progress ring animation.

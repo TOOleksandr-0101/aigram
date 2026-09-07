@@ -114,6 +114,26 @@ struct ChatGroupMember: Identifiable, Hashable {
     let avatar: ChatAvatarKind
 }
 
+enum ChatWallpaperKind: String, CaseIterable, Identifiable, Codable {
+    case doodles = "Dark Doodles"
+    case obsidian = "Midnight Pure"
+    case neon = "Cyber Neon"
+    case sunset = "Sunset Velvet"
+    case emerald = "Emerald Matrix"
+
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .doodles: return "sparkles"
+        case .obsidian: return "moon.stars.fill"
+        case .neon: return "bolt.fill"
+        case .sunset: return "sunset.fill"
+        case .emerald: return "leaf.fill"
+        }
+    }
+}
+
 struct ConversationMessage: Identifiable, Hashable, Codable {
     enum Side: Hashable, Codable {
         case incoming
@@ -136,6 +156,9 @@ struct ConversationMessage: Identifiable, Hashable, Codable {
     let authorName: String?
     let authorAvatar: ChatAvatarKind?
     var reactions: [String]
+    var transcription: String?
+    var isTranscribing: Bool
+    var isTranscribed: Bool
 
     init(
         id: String,
@@ -144,7 +167,10 @@ struct ConversationMessage: Identifiable, Hashable, Codable {
         time: String,
         authorName: String? = nil,
         authorAvatar: ChatAvatarKind? = nil,
-        reactions: [String] = []
+        reactions: [String] = [],
+        transcription: String? = nil,
+        isTranscribing: Bool = false,
+        isTranscribed: Bool = false
     ) {
         self.id = id
         self.side = side
@@ -153,6 +179,23 @@ struct ConversationMessage: Identifiable, Hashable, Codable {
         self.authorName = authorName
         self.authorAvatar = authorAvatar
         self.reactions = reactions
+        self.transcription = transcription
+        self.isTranscribing = isTranscribing
+        self.isTranscribed = isTranscribed
+    }
+
+    var isVoice: Bool {
+        if case .voice = payload { return true }
+        return false
+    }
+
+    var isVideoNote: Bool {
+        if case .videoNote = payload { return true }
+        return false
+    }
+
+    var isTranscribable: Bool {
+        isVoice || isVideoNote
     }
 }
 
@@ -644,10 +687,22 @@ extension ConversationMessage {
                     time: "09:29"
                 ),
                 ConversationMessage(
+                    id: "\(thread.id)-voice",
+                    side: .incoming,
+                    payload: .voice(duration: "0:14"),
+                    time: "09:30"
+                ),
+                ConversationMessage(
                     id: "\(thread.id)-2",
                     side: .outgoing,
                     payload: .videoNote(duration: "0:04"),
                     time: "09:30"
+                ),
+                ConversationMessage(
+                    id: "\(thread.id)-photo",
+                    side: .incoming,
+                    payload: .photo(name: "app_preview_art", size: "1.4 MB"),
+                    time: "09:31"
                 ),
                 ConversationMessage(
                     id: "\(thread.id)-3",

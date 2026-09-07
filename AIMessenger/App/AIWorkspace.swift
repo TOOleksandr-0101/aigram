@@ -45,6 +45,10 @@ final class AIWorkspace: ObservableObject {
         didSet { defaults.set(denyProviderLogging, forKey: Keys.denyProviderLogging) }
     }
 
+    @Published var selectedWallpaper: ChatWallpaperKind {
+        didSet { defaults.set(selectedWallpaper.rawValue, forKey: Keys.selectedWallpaper) }
+    }
+
     @Published var threads: [ChatThread] = ChatThread.sampleThreads
     @Published var contacts: [ContactProfile] = ContactProfile.sampleContacts
 
@@ -63,6 +67,14 @@ final class AIWorkspace: ObservableObject {
         self.modelSlug = defaults.string(forKey: Keys.modelSlug) ?? "qwen/qwen3.5-9b"
         self.useZeroRetention = defaults.object(forKey: Keys.useZeroRetention) as? Bool ?? true
         self.denyProviderLogging = defaults.object(forKey: Keys.denyProviderLogging) as? Bool ?? true
+        if let raw = defaults.string(forKey: Keys.selectedWallpaper), let wp = ChatWallpaperKind(rawValue: raw) {
+            self.selectedWallpaper = wp
+        } else {
+            self.selectedWallpaper = .doodles
+        }
+        if ProcessInfo.processInfo.arguments.contains("-resetStorage") {
+            defaults.removeObject(forKey: Keys.storedConversations)
+        }
         self.storedConversations = Self.loadStoredConversations(from: defaults)
         seedThreadsIfNeeded(ChatThread.sampleThreads)
     }
@@ -221,6 +233,56 @@ final class AIWorkspace: ObservableObject {
             time: formatter.string(from: Date())
         )
         appendMessage(msg, to: thread)
+    }
+
+    func sendPhoto(name: String, size: String = "1.8 MB", to thread: ChatThread) {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        let msg = ConversationMessage(
+            id: UUID().uuidString,
+            side: .outgoing,
+            payload: .photo(name: name, size: size),
+            time: formatter.string(from: Date())
+        )
+        appendMessage(msg, to: thread)
+    }
+
+    func transcribeMessage(id: String, in thread: ChatThread) {
+        var current = messages(for: thread)
+        guard let idx = current.firstIndex(where: { $0.id == id }) else { return }
+
+        if current[idx].transcription != nil {
+            current[idx].isTranscribed.toggle()
+            replaceMessages(current, for: thread)
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            return
+        }
+
+        current[idx].isTranscribing = true
+        replaceMessages(current, for: thread)
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+
+        Task {
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            var updated = self.messages(for: thread)
+            guard let uIdx = updated.firstIndex(where: { $0.id == id }) else { return }
+            updated[uIdx].isTranscribing = false
+
+            let text: String
+            switch updated[uIdx].payload {
+            case .voice:
+                text = "«I checked the latency and tokens on the frontier models. Everything is performing within optimal parameters.»"
+            case .videoNote:
+                text = "«Recorded a quick walkthrough of the new components. Let me know what you think of the design!»"
+            default:
+                text = "«Audio transcribed successfully.»"
+            }
+
+            updated[uIdx].transcription = text
+            updated[uIdx].isTranscribed = true
+            self.replaceMessages(updated, for: thread)
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        }
     }
 
     func addNewAgent(name: String, username: String, role: String, bio: String, avatar: ChatAvatarKind) {
@@ -515,4 +577,5 @@ private enum Keys {
     static let denyProviderLogging = "aiworkspace.openrouter.denyProviderLogging"
     static let storedConversations = "aiworkspace.conversations.state"
     static let conversationSchemaVersion = "aiworkspace.conversations.schemaVersion"
+    static let selectedWallpaper = "aiworkspace.chat.selectedWallpaper"
 }

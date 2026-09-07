@@ -25,17 +25,40 @@
 <p align="center">
   <img src="docs/screenshots/aimessenger-stories-and-folders.png" width="31%" alt="AIGram Чаты с Историями и Папками" />
   <img src="docs/screenshots/aimessenger-video-notes-and-stickers.png" width="31%" alt="AIGram Кружочки и Стикеры" />
-  <img src="docs/screenshots/aimessenger-story-viewer.png" width="31%" alt="AIGram Просмотр историй" />
+  <img src="docs/screenshots/aigram-attachment-sheet.png" width="31%" alt="AIGram Меню вложений медиа" />
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/aimessenger-telegram-settings.png" width="48%" alt="AIGram Темные настройки и Premium" />
-  <img src="docs/screenshots/aimessenger-qr-share.png" width="48%" alt="AIGram QR-код профиля" />
+  <img src="docs/screenshots/aigram-video-transcription.png" width="31%" alt="AIGram Расшифровка голосовых и кружочков" />
+  <img src="docs/screenshots/aigram-voice-recording.png" width="31%" alt="AIGram Запись голосового с аудиоволной" />
+  <img src="docs/screenshots/aigram-appearance-wallpaper.png" width="31%" alt="AIGram Обои чата и оформление" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/aimessenger-story-viewer.png" width="31%" alt="AIGram Просмотр историй" />
+  <img src="docs/screenshots/aimessenger-telegram-settings.png" width="31%" alt="AIGram Темные настройки и Premium" />
+  <img src="docs/screenshots/aimessenger-qr-share.png" width="31%" alt="AIGram QR-код профиля" />
 </p>
 
 ---
 
 ## 🚀 Ключевые возможности
+
+* **📎 Интерактивное меню вложений и просмотр фото**:
+  * Нижняя шторка «Share Content» с каруселью недавних медиа и быстрыми действиями: **Галерея**, **Файл**, **Геопозиция**, **Опрос**.
+  * Интеграция с `PhotosPicker`, отображение фото-бабблов с превью и размером файла, а также полноэкранный модальный просмотрщик с зумом.
+
+* **🎙️→🅰️ Расшифровка аудио и видео в текст (`→A`)**:
+  * Фирменная кнопка `→A` на голосовых сообщениях и кружочках.
+  * Индикатор распознавания с вращающимся спиннером и плавное разворачивание распознанной речи прямо под бабблом.
+
+* **🔴 Запись голосовых сообщений с аудиоволной**:
+  * Панель записи с пульсирующей красной точкой (`● REC 0:02`), живой анимацией аудиоволн и возможностью отмены смахиванием.
+  * Тактильный отклик Taptic Engine при старте записи, отмене и отправке.
+
+* **🎨 Динамические обои чата и настройка оформления**:
+  * 5 уникальных тем фона чатов: **Dark Doodles** (фирменные дудлы), **Midnight Pure** (глубокий черный), **Cyber Neon**, **Sunset Velvet** и **Emerald Matrix**.
+  * Моментальное переключение обоев в реальном времени с сохранением в `UserDefaults`.
 
 * **🎥 Видеосообщения («Кружочки»)**:
   * Круглые видео-бабблы с анимированным круговым индикатором прогресса по периметру.
