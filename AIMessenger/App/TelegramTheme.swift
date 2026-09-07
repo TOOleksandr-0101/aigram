@@ -2,6 +2,11 @@ import SwiftUI
 
 enum TelegramPalette {
     static let backgroundPrimary = Color(hex: 0x000000)
+}
+
+typealias AIGramPalette = TelegramPalette
+
+extension TelegramPalette {
     static let backgroundElevated = Color(hex: 0x1C1C1E)
     static let tabBarBackground = Color(hex: 0x1C1C1D)
     static let groupedBackground = Color(hex: 0x000000)

@@ -137,7 +137,7 @@ struct SettingsHubScreen: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text("Telegram AI Premium")
+                    Text("AIGram Premium")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.white)
 
@@ -326,7 +326,7 @@ struct SettingsHubScreen: View {
             }
 
             telegramRow(
-                title: "Telegram AI FAQ",
+                title: "AIGram FAQ",
                 symbol: "questionmark.circle.fill",
                 color: Color(hex: 0x0A84FF),
                 showSeparator: false
@@ -453,7 +453,7 @@ struct QRCodeShareSheet: View {
                             .font(.system(size: 20, weight: .bold))
                             .foregroundStyle(.white)
 
-                        Text("t.me/\(username.replacingOccurrences(of: "@", with: ""))")
+                        Text("aigram.app/\(username.replacingOccurrences(of: "@", with: ""))")
                             .font(.system(size: 15))
                             .foregroundStyle(TelegramPalette.skyBlue)
                     }
@@ -464,7 +464,7 @@ struct QRCodeShareSheet: View {
                 VStack(spacing: 12) {
                     Button {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        UIPasteboard.general.string = "https://t.me/\(username.replacingOccurrences(of: "@", with: ""))"
+                        UIPasteboard.general.string = "https://aigram.app/\(username.replacingOccurrences(of: "@", with: ""))"
                         dismiss()
                     } label: {
                         Text("Share QR Code")
@@ -477,7 +477,7 @@ struct QRCodeShareSheet: View {
 
                     Button {
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        UIPasteboard.general.string = "https://t.me/\(username.replacingOccurrences(of: "@", with: ""))"
+                        UIPasteboard.general.string = "https://aigram.app/\(username.replacingOccurrences(of: "@", with: ""))"
                         dismiss()
                     } label: {
                         Text("Copy Link")

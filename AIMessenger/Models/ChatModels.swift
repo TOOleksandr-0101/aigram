@@ -739,7 +739,7 @@ extension ConversationMessage {
                 ConversationMessage(
                     id: "\(thread.id)-1",
                     side: .incoming,
-                    payload: .text("I see two directions: sharper Telegram realism or a slightly softer premium look. I can push either."),
+                    payload: .text("I see two directions: ultra-crisp AIGram aesthetics or a slightly softer neon glow. I can push either."),
                     time: "10:42"
                 )
             ]

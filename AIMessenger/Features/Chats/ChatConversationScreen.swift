@@ -1370,7 +1370,7 @@ private struct StickerEmojiSheet: View {
             StickerItem(name: "Alien Intelligence", emoji: "👾"),
             StickerItem(name: "Celebration", emoji: "🎉")
         ],
-        "Telegram Classics": [
+        "AIGram Classics": [
             StickerItem(name: "Duck Cool", emoji: "🦆"),
             StickerItem(name: "Sunglasses", emoji: "😎"),
             StickerItem(name: "Mind Blown", emoji: "🤯"),
