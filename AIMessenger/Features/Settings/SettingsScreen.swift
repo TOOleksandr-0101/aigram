@@ -35,7 +35,7 @@ struct EditProfileScreen: View {
             }
         }
         .animation(.spring(response: 0.32, dampingFraction: 0.88), value: showPhotoSheet)
-        .preferredColorScheme(.light)
+        .preferredColorScheme(.dark)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
     }
@@ -59,7 +59,7 @@ struct EditProfileScreen: View {
 
             Text("Profile")
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(.black)
+                .foregroundStyle(.white)
 
             Spacer()
 
@@ -71,10 +71,10 @@ struct EditProfileScreen: View {
         }
         .padding(.horizontal, 8)
         .frame(height: 44)
-        .background(Color(hex: 0xF6F6F6))
+        .background(TelegramPalette.backgroundElevated)
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(Color(hex: 0xA6A6AA))
+                .fill(TelegramPalette.separator)
                 .frame(height: 0.5)
         }
     }
@@ -109,24 +109,26 @@ struct EditProfileScreen: View {
                 VStack(spacing: 16) {
                     TextField("Display name", text: $aiWorkspace.displayName)
                         .font(.system(size: 17))
+                        .foregroundStyle(.white)
 
                     Rectangle()
-                        .fill(TelegramPalette.lightSeparator)
+                        .fill(TelegramPalette.separator)
                         .frame(height: 0.5)
 
                     TextField("Username", text: $aiWorkspace.username)
                         .font(.system(size: 17))
+                        .foregroundStyle(.white)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 }
             }
             .padding(.horizontal, 15)
             .frame(height: 92)
-            .background(Color.white)
+            .background(TelegramPalette.backgroundElevated)
 
             Text("Choose how your workspace appears across chats, calls, and contacts.")
                 .font(.system(size: 14))
-                .foregroundStyle(Color(hex: 0x636366))
+                .foregroundStyle(TelegramPalette.mutedText)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16)
                 .padding(.top, 7)
@@ -137,25 +139,25 @@ struct EditProfileScreen: View {
         VStack(spacing: 0) {
             TextField("About", text: $aiWorkspace.bio, axis: .vertical)
                 .font(.system(size: 17))
-                .foregroundStyle(.black)
+                .foregroundStyle(.white)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
-                .background(Color.white)
+                .background(TelegramPalette.backgroundElevated)
                 .overlay(alignment: .top) {
                     Rectangle()
-                        .fill(TelegramPalette.lightSeparator)
+                        .fill(TelegramPalette.separator)
                         .frame(height: 0.5)
                 }
                 .overlay(alignment: .bottom) {
                     Rectangle()
-                        .fill(TelegramPalette.lightSeparator)
+                        .fill(TelegramPalette.separator)
                         .frame(height: 0.5)
                 }
 
             Text("Describe what this space is for. Example: private hub for coding, research, and study assistants.")
                 .font(.system(size: 14))
-                .foregroundStyle(Color(hex: 0x636366))
+                .foregroundStyle(TelegramPalette.mutedText)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
@@ -168,10 +170,10 @@ struct EditProfileScreen: View {
             settingsRow(title: "Provider", value: aiWorkspace.isConfigured ? "OpenRouter" : "Offline fallback")
             settingsRow(title: "Privacy", value: aiWorkspace.useZeroRetention ? "Zero retention" : "Standard", showSeparator: false)
         }
-        .background(Color.white)
+        .background(TelegramPalette.backgroundElevated)
         .overlay {
             RoundedRectangle(cornerRadius: 0)
-                .stroke(TelegramPalette.lightSeparator, lineWidth: 0.5)
+                .stroke(TelegramPalette.separator, lineWidth: 0.5)
         }
     }
 
@@ -179,25 +181,20 @@ struct EditProfileScreen: View {
         HStack(spacing: 12) {
             Text(title)
                 .font(.system(size: 17))
-                .foregroundStyle(.black)
+                .foregroundStyle(.white)
 
             Spacer()
 
             Text(value)
                 .font(.system(size: 17))
-                .foregroundStyle(Color.black.opacity(0.6))
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Color(hex: 0xC7C7CC))
+                .foregroundStyle(TelegramPalette.mutedText)
         }
         .padding(.horizontal, 16)
         .frame(height: 44)
-        .background(Color.white)
         .overlay(alignment: .bottom) {
             if showSeparator {
                 Rectangle()
-                    .fill(TelegramPalette.lightSeparator)
+                    .fill(TelegramPalette.separator)
                     .frame(height: 0.5)
                     .padding(.leading, 16)
             }

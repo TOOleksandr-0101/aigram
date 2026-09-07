@@ -152,6 +152,16 @@ struct OpenRouterService {
                     role: message.side == .incoming ? "assistant" : "user",
                     content: contentPrefix + "[Voice message: \(duration)]"
                 )
+            case let .videoNote(duration):
+                return OpenRouterChatMessage(
+                    role: message.side == .incoming ? "assistant" : "user",
+                    content: contentPrefix + "[Video message: \(duration)]"
+                )
+            case let .sticker(name, emoji):
+                return OpenRouterChatMessage(
+                    role: message.side == .incoming ? "assistant" : "user",
+                    content: contentPrefix + "[Sticker: \(emoji) \(name)]"
+                )
             }
         }
 

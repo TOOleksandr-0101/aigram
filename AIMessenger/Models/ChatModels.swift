@@ -125,6 +125,8 @@ struct ConversationMessage: Identifiable, Hashable, Codable {
         case emoji(String)
         case photo(name: String, size: String)
         case voice(duration: String)
+        case videoNote(duration: String)
+        case sticker(name: String, emoji: String)
     }
 
     let id: String
@@ -640,6 +642,24 @@ extension ConversationMessage {
                     side: .incoming,
                     payload: .text("The layout already feels cleaner. Next I'd tighten spacing around the hero and calm the icon sizes."),
                     time: "09:29"
+                ),
+                ConversationMessage(
+                    id: "\(thread.id)-2",
+                    side: .outgoing,
+                    payload: .videoNote(duration: "0:04"),
+                    time: "09:30"
+                ),
+                ConversationMessage(
+                    id: "\(thread.id)-3",
+                    side: .incoming,
+                    payload: .sticker(name: "Robot Joy", emoji: "🤖"),
+                    time: "09:31"
+                ),
+                ConversationMessage(
+                    id: "\(thread.id)-4",
+                    side: .incoming,
+                    payload: .text("Кружочек зафиксирован! Проанализировал таймлайн видео-заметки: контраст и скругления идеальные."),
+                    time: "09:31"
                 )
             ]
         case "seminar-circle":

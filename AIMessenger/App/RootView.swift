@@ -20,8 +20,8 @@ struct RootView: View {
             }
         }
         .ignoresSafeArea(edges: .bottom)
-        .background(currentBackground.ignoresSafeArea())
-        .preferredColorScheme(selectedTab == .settings ? .light : .dark)
+        .background(TelegramPalette.backgroundPrimary.ignoresSafeArea())
+        .preferredColorScheme(.dark)
         .environmentObject(aiWorkspace)
     }
 
@@ -126,10 +126,6 @@ struct RootView: View {
         case .settings:
             return settingsPath.isEmpty
         }
-    }
-
-    private var currentBackground: Color {
-        selectedTab == .settings ? TelegramPalette.settingsCanvasBottom : TelegramPalette.backgroundPrimary
     }
 }
 

@@ -5,393 +5,494 @@ struct SettingsHubScreen: View {
     let onSwitchTab: (AppTab) -> Void
 
     @EnvironmentObject private var aiWorkspace: AIWorkspace
+    @State private var showQRCodeSheet = false
+    @State private var searchText = ""
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(spacing: 18) {
+            VStack(spacing: 20) {
                 topBar
-                profileHero
-                quickActions
-                workspaceSection
-                preferencesSection
+                profileHeader
+                premiumCard
+                searchField
+                workspaceGroup
+                preferencesGroup
+                aiEngineGroup
+                helpGroup
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 16)
             .padding(.top, 8)
-            .padding(.bottom, 112)
+            .padding(.bottom, 110)
         }
-        .background(backgroundLayer)
-        .preferredColorScheme(.light)
+        .background(TelegramPalette.backgroundPrimary.ignoresSafeArea())
+        .preferredColorScheme(.dark)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
-    }
-
-    private var backgroundLayer: some View {
-        LinearGradient(
-            colors: [TelegramPalette.settingsCanvasTop, TelegramPalette.settingsCanvasBottom],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .overlay(alignment: .topLeading) {
-            Circle()
-                .fill(Color(hex: 0xCDD6FF, opacity: 0.45))
-                .frame(width: 240, height: 240)
-                .blur(radius: 60)
-                .offset(x: -70, y: -80)
+        .sheet(isPresented: $showQRCodeSheet) {
+            QRCodeShareSheet(
+                displayName: aiWorkspace.displayName,
+                username: aiWorkspace.username,
+                initials: aiWorkspace.initials
+            )
         }
-        .overlay(alignment: .topTrailing) {
-            Circle()
-                .fill(Color(hex: 0xFFE0C5, opacity: 0.65))
-                .frame(width: 220, height: 220)
-                .blur(radius: 70)
-                .offset(x: 80, y: -50)
-        }
-        .ignoresSafeArea()
     }
 
     private var topBar: some View {
-        VStack(spacing: 14) {
-            HStack {
-                Button("Edit") {
-                    onOpenRoute(.editProfile)
-                }
-                .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(TelegramPalette.accentBlue)
-
-                Spacer()
-
-                Text("Settings")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(TelegramPalette.settingsPrimaryText)
-
-                Spacer()
-
-                Button {
-                    onOpenRoute(.editProfile)
-                } label: {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 21, weight: .medium))
-                        .foregroundStyle(TelegramPalette.accentBlue)
-                        .frame(width: 34, height: 34)
-                        .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                }
-                .buttonStyle(.plain)
+        HStack {
+            Button("Edit") {
+                onOpenRoute(.editProfile)
             }
+            .font(.system(size: 17))
+            .foregroundStyle(TelegramPalette.accentBlue)
 
-            HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(TelegramPalette.settingsSecondaryText)
+            Spacer()
 
-                Text("Search")
-                    .font(.system(size: 17))
-                    .foregroundStyle(TelegramPalette.settingsSecondaryText)
+            Text("Settings")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(.white)
 
-                Spacer(minLength: 0)
+            Spacer()
+
+            Button {
+                showQRCodeSheet = true
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            } label: {
+                Image(systemName: "qrcode")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundStyle(TelegramPalette.accentBlue)
             }
-            .padding(.horizontal, 14)
-            .frame(height: 48)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(TelegramPalette.settingsSearchFill)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(Color.white.opacity(0.75), lineWidth: 1)
-                    }
-            )
-            .shadow(color: TelegramPalette.settingsShadow, radius: 20, y: 10)
+            .buttonStyle(.plain)
         }
     }
 
-    private var profileHero: some View {
-        Button {
-            onOpenRoute(.editProfile)
-        } label: {
-            ZStack(alignment: .topTrailing) {
-                roundedCard(cornerRadius: 28)
+    private var profileHeader: some View {
+        VStack(spacing: 8) {
+            Button {
+                onOpenRoute(.editProfile)
+            } label: {
+                ZStack(alignment: .bottomTrailing) {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color(hex: 0xFF9966), Color(hex: 0xFF5E62)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
 
-                VStack(alignment: .leading, spacing: 18) {
-                    HStack(alignment: .center, spacing: 16) {
-                        ZStack {
+                        Text(aiWorkspace.initials)
+                            .font(.system(size: 32, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                    .frame(width: 82, height: 82)
+
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(6)
+                        .background(TelegramPalette.accentBlue, in: Circle())
+                        .overlay(Circle().stroke(TelegramPalette.backgroundPrimary, lineWidth: 2))
+                }
+            }
+            .buttonStyle(.plain)
+
+            VStack(spacing: 3) {
+                Text(aiWorkspace.displayName)
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(.white)
+
+                Text(aiWorkspace.connectionLabel)
+                    .font(.system(size: 14))
+                    .foregroundStyle(TelegramPalette.mutedText)
+
+                Text(aiWorkspace.username)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(TelegramPalette.skyBlue)
+            }
+
+            Button {
+                onOpenRoute(.editProfile)
+            } label: {
+                Text("Change Profile Photo")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(TelegramPalette.accentBlue)
+                    .padding(.top, 2)
+            }
+        }
+        .padding(.vertical, 6)
+    }
+
+    private var premiumCard: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(Color(hex: 0xF59E0B).opacity(0.2))
+                    .frame(width: 38, height: 38)
+
+                Image(systemName: "star.fill")
+                    .font(.system(size: 18))
+                    .foregroundStyle(Color(hex: 0xFBBF24))
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text("Telegram AI Premium")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.white)
+
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(TelegramPalette.skyBlue)
+                }
+
+                Text("Fastest AI Models, Voice Notes & 4GB Memory")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.8))
+            }
+
+            Spacer()
+
+            Text("ACTIVE")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.white.opacity(0.2), in: Capsule())
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            LinearGradient(
+                colors: [Color(hex: 0x5856D6), Color(hex: 0x8A56E6)],
+                startPoint: .leading,
+                endPoint: .trailing
+            ),
+            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+        )
+        .shadow(color: Color(hex: 0x5856D6).opacity(0.3), radius: 10, y: 4)
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 15))
+                .foregroundStyle(Color.white.opacity(0.45))
+
+            TextField("", text: $searchText, prompt: Text("Search Settings").foregroundStyle(Color.white.opacity(0.45)))
+                .font(.system(size: 16))
+                .foregroundStyle(.white)
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 38)
+        .background(TelegramPalette.backgroundElevated, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private var workspaceGroup: some View {
+        VStack(spacing: 0) {
+            telegramRow(
+                title: "Saved Messages",
+                symbol: "bookmark.fill",
+                color: Color(hex: 0x0A84FF),
+                showSeparator: true
+            ) {
+                onSwitchTab(.chats)
+            }
+
+            telegramRow(
+                title: "Recent Calls",
+                symbol: "phone.fill",
+                color: Color(hex: 0x30D158),
+                showSeparator: true
+            ) {
+                onSwitchTab(.calls)
+            }
+
+            telegramRow(
+                title: "Devices",
+                symbol: "laptopcomputer",
+                color: Color(hex: 0xFF9F0A),
+                showSeparator: true
+            ) {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            }
+
+            telegramRow(
+                title: "Chat Folders",
+                symbol: "folder.fill",
+                color: Color(hex: 0x64D2FF),
+                showSeparator: false
+            ) {
+                onSwitchTab(.chats)
+            }
+        }
+        .background(TelegramPalette.backgroundElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private var preferencesGroup: some View {
+        VStack(spacing: 0) {
+            telegramRow(
+                title: "Notifications and Sounds",
+                symbol: "bell.badge.fill",
+                color: Color(hex: 0xFF453A),
+                showSeparator: true
+            ) {
+                onOpenRoute(.notifications)
+            }
+
+            telegramRow(
+                title: "Privacy and Security",
+                symbol: "lock.fill",
+                color: Color(hex: 0x8E8E93),
+                showSeparator: true
+            ) {
+                onOpenRoute(.privacySecurity)
+            }
+
+            telegramRow(
+                title: "Data and Storage",
+                symbol: "arrow.up.arrow.down.circle.fill",
+                color: Color(hex: 0x30D158),
+                showSeparator: true
+            ) {
+                onOpenRoute(.dataStorage)
+            }
+
+            telegramRow(
+                title: "Appearance",
+                symbol: "paintbrush.fill",
+                color: Color(hex: 0x0A84FF),
+                showSeparator: true
+            ) {
+                onOpenRoute(.appearance)
+            }
+
+            telegramRow(
+                title: "Stickers and Emoji",
+                symbol: "face.smiling.fill",
+                color: Color(hex: 0xFFD60A),
+                showSeparator: false
+            ) {
+                onOpenRoute(.stickers)
+            }
+        }
+        .background(TelegramPalette.backgroundElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private var aiEngineGroup: some View {
+        VStack(spacing: 0) {
+            telegramRow(
+                title: "AI Gateway & OpenRouter",
+                subtitle: aiWorkspace.isConfigured ? "Live" : "Fallback",
+                symbol: "sparkles",
+                color: Color(hex: 0xBF5AF2),
+                showSeparator: true
+            ) {
+                onOpenRoute(.aiSetup)
+            }
+
+            telegramRow(
+                title: "AI Agent Library",
+                subtitle: "7 Contacts",
+                symbol: "person.2.fill",
+                color: Color(hex: 0x5E5CE6),
+                showSeparator: true
+            ) {
+                onSwitchTab(.contacts)
+            }
+
+            telegramRow(
+                title: "Language",
+                subtitle: "English",
+                symbol: "globe",
+                color: Color(hex: 0x64D2FF),
+                showSeparator: false
+            ) {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            }
+        }
+        .background(TelegramPalette.backgroundElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private var helpGroup: some View {
+        VStack(spacing: 0) {
+            telegramRow(
+                title: "Ask a Question",
+                symbol: "bubble.left.and.bubble.right.fill",
+                color: Color(hex: 0xFF9F0A),
+                showSeparator: true
+            ) {
+                onSwitchTab(.chats)
+            }
+
+            telegramRow(
+                title: "Telegram AI FAQ",
+                symbol: "questionmark.circle.fill",
+                color: Color(hex: 0x0A84FF),
+                showSeparator: false
+            ) {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            }
+        }
+        .background(TelegramPalette.backgroundElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func telegramRow(
+        title: String,
+        subtitle: String? = nil,
+        symbol: String,
+        color: Color,
+        showSeparator: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(color)
+                    .frame(width: 29, height: 29)
+                    .overlay {
+                        Image(systemName: symbol)
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(.white)
+                    }
+
+                Text(title)
+                    .font(.system(size: 16))
+                    .foregroundStyle(.white)
+
+                Spacer()
+
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 15))
+                        .foregroundStyle(TelegramPalette.mutedText)
+                }
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(TelegramPalette.mutedText.opacity(0.6))
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .overlay(alignment: .bottom) {
+            if showSeparator {
+                Rectangle()
+                    .fill(TelegramPalette.separator)
+                    .frame(height: 0.5)
+                    .padding(.leading, 55)
+            }
+        }
+    }
+}
+
+struct QRCodeShareSheet: View {
+    let displayName: String
+    let username: String
+    let initials: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack {
+            TelegramPalette.backgroundPrimary.ignoresSafeArea()
+
+            VStack(spacing: 24) {
+                HStack {
+                    Spacer()
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(8)
+                            .background(Color.white.opacity(0.12), in: Circle())
+                    }
+                }
+                .padding(.top, 16)
+                .padding(.horizontal, 20)
+
+                VStack(spacing: 20) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .fill(Color.white)
+                            .frame(width: 260, height: 260)
+
+                        VStack(spacing: 6) {
+                            Image(systemName: "qrcode")
+                                .resizable()
+                                .interpolation(.none)
+                                .scaledToFit()
+                                .frame(width: 200, height: 200)
+                                .foregroundStyle(Color.black)
+                        }
+                        .overlay {
                             Circle()
                                 .fill(
                                     LinearGradient(
-                                        colors: [Color(hex: 0xFFB765), Color(hex: 0xFF6F91)],
+                                        colors: [Color(hex: 0xFF9966), Color(hex: 0xFF5E62)],
                                         startPoint: .topLeading,
                                         endPoint: .bottomTrailing
                                     )
                                 )
-
-                            Circle()
-                                .stroke(Color.white.opacity(0.82), lineWidth: 2)
-                                .padding(4)
-
-                            Text(aiWorkspace.initials)
-                                .font(.system(size: 28, weight: .bold))
-                                .foregroundStyle(.white)
-                        }
-                        .frame(width: 78, height: 78)
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(aiWorkspace.displayName)
-                                .font(.system(size: 30, weight: .bold))
-                                .foregroundStyle(TelegramPalette.settingsPrimaryText)
-
-                            Text(aiWorkspace.connectionLabel)
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(TelegramPalette.accentBlue)
-
-                            Text("\(aiWorkspace.username)  •  \(aiWorkspace.modelDisplayName)")
-                                .font(.system(size: 15))
-                                .foregroundStyle(TelegramPalette.settingsSecondaryText)
+                                .frame(width: 48, height: 48)
+                                .overlay {
+                                    Text(initials)
+                                        .font(.system(size: 18, weight: .bold))
+                                        .foregroundStyle(.white)
+                                }
+                                .overlay(Circle().stroke(Color.white, lineWidth: 3))
                         }
                     }
+                    .shadow(color: Color.black.opacity(0.5), radius: 20, y: 10)
 
-                    HStack(spacing: 10) {
-                        statPill(title: "7", subtitle: "agents")
-                        statPill(title: "24", subtitle: "chats")
-                        statPill(title: aiWorkspace.isConfigured ? "Live" : "Local", subtitle: "mode")
-                    }
-                }
-                .padding(22)
-
-                Image(systemName: "sparkles")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 38, height: 38)
-                    .background(
-                        LinearGradient(
-                            colors: [Color(hex: 0x5F87FF), Color(hex: 0x8B67FF)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    )
-                    .padding(18)
-            }
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var quickActions: some View {
-        HStack(spacing: 12) {
-            actionCard(title: "Saved", subtitle: "Chats", symbol: "bookmark.fill", colors: [Color(hex: 0x66C4FF), Color(hex: 0x2D87FF)]) {
-                onSwitchTab(.chats)
-            }
-            actionCard(title: "Voice", subtitle: "Calls", symbol: "phone.fill", colors: [Color(hex: 0x7CBAFF), Color(hex: 0x5A6CFF)]) {
-                onSwitchTab(.calls)
-            }
-            actionCard(title: "Agents", subtitle: "Library", symbol: "sparkles", colors: [Color(hex: 0xFFBF78), Color(hex: 0xFF7B70)]) {
-                onSwitchTab(.contacts)
-            }
-        }
-    }
-
-    private var workspaceSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionLabel("Workspace")
-
-            SettingsGlassCard {
-                modernRow(title: "Profile", subtitle: "Name, handle and bio", symbol: "person.crop.square.fill", colors: [Color(hex: 0x7187FF), Color(hex: 0x8F71FF)]) {
-                    onOpenRoute(.editProfile)
-                }
-                cardDivider
-                modernRow(title: "Agent Library", subtitle: "Browse your AI contacts", symbol: "square.grid.2x2.fill", colors: [Color(hex: 0x4DB7FF), Color(hex: 0x2B8CFF)]) {
-                    onSwitchTab(.contacts)
-                }
-                cardDivider
-                modernRow(title: "Saved Messages", subtitle: "Pinned notes and long-term context", symbol: "bookmark.fill", colors: [Color(hex: 0x52C2B9), Color(hex: 0x2A9D8F)]) {
-                    onSwitchTab(.chats)
-                }
-            }
-        }
-    }
-
-    private var preferencesSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionLabel("Preferences")
-
-            SettingsGlassCard {
-                modernRow(title: "Notifications", subtitle: "Alerts, previews and sounds", symbol: "bell.badge.fill", colors: [Color(hex: 0xFF8F85), Color(hex: 0xFF6363)]) {
-                    onOpenRoute(.notifications)
-                }
-                cardDivider
-                modernRow(title: "AI Gateway", subtitle: "OpenRouter, model and privacy", symbol: "brain.head.profile", colors: [Color(hex: 0x5DB8FF), Color(hex: 0x6B66FF)]) {
-                    onOpenRoute(.aiSetup)
-                }
-                cardDivider
-                modernRow(title: "Privacy & Security", subtitle: "Visibility, passcode and sessions", symbol: "lock.shield.fill", colors: [Color(hex: 0x68D2B0), Color(hex: 0x1AA083)]) {
-                    onOpenRoute(.privacySecurity)
-                }
-                cardDivider
-                modernRow(title: "Data & Storage", subtitle: "Downloads, cache and network", symbol: "externaldrive.fill", colors: [Color(hex: 0x7BC2FF), Color(hex: 0x4B92FF)]) {
-                    onOpenRoute(.dataStorage)
-                }
-                cardDivider
-                modernRow(title: "Appearance", subtitle: "Theme, text size and icon", symbol: "paintpalette.fill", colors: [Color(hex: 0x9E8BFF), Color(hex: 0x6C63FF)]) {
-                    onOpenRoute(.appearance)
-                }
-            }
-        }
-    }
-
-    private func actionCard(
-        title: String,
-        subtitle: String,
-        symbol: String,
-        colors: [Color],
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 14) {
-                Image(systemName: symbol)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 38, height: 38)
-                    .background(
-                        LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing),
-                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    )
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(TelegramPalette.settingsPrimaryText)
-                    Text(subtitle)
-                        .font(.system(size: 13))
-                        .foregroundStyle(TelegramPalette.settingsSecondaryText)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(TelegramPalette.settingsCard)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .stroke(TelegramPalette.settingsCardStroke, lineWidth: 1)
-                    }
-            )
-            .shadow(color: TelegramPalette.settingsShadow, radius: 20, y: 10)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func modernRow(
-        title: String,
-        subtitle: String,
-        symbol: String,
-        colors: [Color],
-        trailingBadge: String? = nil,
-        action: @escaping () -> Void = {}
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 14) {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
-                    .frame(width: 42, height: 42)
-                    .overlay {
-                        Image(systemName: symbol)
-                            .font(.system(size: 18, weight: .semibold))
+                    VStack(spacing: 4) {
+                        Text(displayName)
+                            .font(.system(size: 20, weight: .bold))
                             .foregroundStyle(.white)
+
+                        Text("t.me/\(username.replacingOccurrences(of: "@", with: ""))")
+                            .font(.system(size: 15))
+                            .foregroundStyle(TelegramPalette.skyBlue)
                     }
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(TelegramPalette.settingsPrimaryText)
-
-                    Text(subtitle)
-                        .font(.system(size: 14))
-                        .foregroundStyle(TelegramPalette.settingsSecondaryText)
-                        .lineLimit(1)
                 }
 
                 Spacer()
 
-                if let trailingBadge {
-                    Text(trailingBadge)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(TelegramPalette.settingsSecondaryText)
-                        .padding(.horizontal, 10)
-                        .frame(height: 26)
-                        .background(Color.white.opacity(0.7), in: Capsule(style: .continuous))
+                VStack(spacing: 12) {
+                    Button {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        UIPasteboard.general.string = "https://t.me/\(username.replacingOccurrences(of: "@", with: ""))"
+                        dismiss()
+                    } label: {
+                        Text("Share QR Code")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
+                            .background(TelegramPalette.accentBlue, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+
+                    Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        UIPasteboard.general.string = "https://t.me/\(username.replacingOccurrences(of: "@", with: ""))"
+                        dismiss()
+                    } label: {
+                        Text("Copy Link")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
+                            .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
                 }
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Color(hex: 0xB1B7CA))
+                .padding(.horizontal, 24)
+                .padding(.bottom, 24)
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-    }
-
-    private func statPill(title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.system(size: 17, weight: .bold))
-                .foregroundStyle(TelegramPalette.settingsPrimaryText)
-            Text(subtitle.uppercased())
-                .font(.system(size: 11, weight: .semibold))
-                .tracking(0.7)
-                .foregroundStyle(TelegramPalette.settingsSecondaryText)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(Color.white.opacity(0.56), in: Capsule(style: .continuous))
-    }
-
-    private func sectionLabel(_ text: String) -> some View {
-        Text(text.uppercased())
-            .font(.system(size: 12, weight: .bold))
-            .tracking(0.9)
-            .foregroundStyle(TelegramPalette.settingsSecondaryText)
-            .padding(.horizontal, 6)
-    }
-
-    private func roundedCard(cornerRadius: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(TelegramPalette.settingsCard)
-            .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(TelegramPalette.settingsCardStroke, lineWidth: 1)
-            }
-            .shadow(color: TelegramPalette.settingsShadow, radius: 26, y: 14)
-    }
-
-    private var cardDivider: some View {
-        Rectangle()
-            .fill(Color.white.opacity(0.72))
-            .frame(height: 1)
-            .padding(.leading, 74)
-            .padding(.trailing, 18)
-    }
-}
-
-private struct SettingsGlassCard<Content: View>: View {
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        VStack(spacing: 0) {
-            content
-        }
-        .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(TelegramPalette.settingsCard)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(TelegramPalette.settingsCardStroke, lineWidth: 1)
-                }
-        )
-        .shadow(color: TelegramPalette.settingsShadow, radius: 24, y: 14)
-    }
-}
-
-struct SettingsHubScreen_Previews: PreviewProvider {
-    static var previews: some View {
-        SettingsHubScreen(onOpenRoute: { _ in }, onSwitchTab: { _ in })
-            .environmentObject(AIWorkspace())
+        .presentationDetents([.fraction(0.7)])
+        .presentationDragIndicator(.visible)
     }
 }

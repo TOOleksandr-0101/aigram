@@ -11,8 +11,15 @@ struct ChatConversationScreen: View {
     @State private var currentTypingBotName: String?
     @State private var isCallPresented = false
     @State private var showAttachmentDialog = false
+    @State private var isStickerSheetPresented = false
+    @State private var inputMediaMode: InputMediaMode = .voice
     @State private var errorText: String?
     private let openRouterService = OpenRouterService()
+
+    enum InputMediaMode {
+        case voice
+        case video
+    }
 
     init(thread: ChatThread) {
         self.thread = thread
@@ -92,6 +99,12 @@ struct ChatConversationScreen: View {
                 roleTitle: thread.aiProfile.roleTitle,
                 greetingText: thread.aiProfile.greeting
             )
+        }
+        .sheet(isPresented: $isStickerSheetPresented) {
+            StickerEmojiSheet { name, emoji in
+                aiWorkspace.sendSticker(name: name, emoji: emoji, to: thread)
+                messages = aiWorkspace.messages(for: thread)
+            }
         }
     }
 
@@ -179,13 +192,13 @@ struct ChatConversationScreen: View {
     }
 
     private var inputBar: some View {
-        HStack(spacing: 10) {
-            HStack(spacing: 10) {
+        HStack(spacing: 8) {
+            HStack(spacing: 8) {
                 Button {
                     showAttachmentDialog = true
                 } label: {
                     Image(systemName: "paperclip")
-                        .font(.system(size: 18))
+                        .font(.system(size: 19))
                         .foregroundStyle(TelegramPalette.mutedText)
                 }
 
@@ -195,27 +208,63 @@ struct ChatConversationScreen: View {
                     .disabled(isSending)
 
                 Button {
-                    sendVoiceNote()
+                    isStickerSheetPresented = true
                 } label: {
-                    Image(systemName: "mic.fill")
-                        .font(.system(size: 18))
-                        .foregroundStyle(TelegramPalette.skyBlue)
+                    Image(systemName: "face.smiling")
+                        .font(.system(size: 20))
+                        .foregroundStyle(TelegramPalette.mutedText)
                 }
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 12)
             .frame(height: 40)
             .background(Color.white.opacity(0.08), in: Capsule(style: .continuous))
 
-            Button {
-                Task {
-                    await sendMessage()
+            if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Button {
+                    handleMediaTap()
+                } label: {
+                    Image(systemName: inputMediaMode == .voice ? "mic.fill" : "camera.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 36, height: 36)
+                        .background(
+                            inputMediaMode == .voice ? TelegramPalette.skyBlue : Color(hex: 0x30B0C7),
+                            in: Circle()
+                        )
                 }
-            } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 34))
-                    .foregroundStyle(canSend ? .white : Color.white.opacity(0.35))
+                .contextMenu {
+                    Button {
+                        sendVoiceNote()
+                    } label: {
+                        Label("Send Voice Message", systemImage: "mic.fill")
+                    }
+
+                    Button {
+                        sendVideoNote()
+                    } label: {
+                        Label("Send Video Note (Кружочек)", systemImage: "camera.fill")
+                    }
+
+                    Button {
+                        withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+                            inputMediaMode = (inputMediaMode == .voice ? .video : .voice)
+                        }
+                    } label: {
+                        Label(inputMediaMode == .voice ? "Switch to Video" : "Switch to Voice", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                }
+            } else {
+                Button {
+                    Task {
+                        await sendMessage()
+                    }
+                } label: {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 34))
+                        .foregroundStyle(canSend ? .white : Color.white.opacity(0.35))
+                }
+                .disabled(canSend == false)
             }
-            .disabled(canSend == false)
         }
         .padding(.horizontal, 10)
         .padding(.top, 10)
@@ -232,6 +281,26 @@ struct ChatConversationScreen: View {
                     .padding(.top, -18)
             }
         }
+    }
+
+    private func handleMediaTap() {
+        if inputMediaMode == .voice {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+                inputMediaMode = .video
+            }
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        } else {
+            sendVideoNote()
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+                inputMediaMode = .voice
+            }
+        }
+    }
+
+    private func sendVideoNote() {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        aiWorkspace.sendVideoNote(duration: "0:04", to: thread)
+        messages = aiWorkspace.messages(for: thread)
     }
 
     private var chatBackground: some View {
@@ -448,47 +517,67 @@ private struct MessageBubble: View {
                 Spacer(minLength: 40)
             }
 
-            content
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .padding(.trailing, message.side == .outgoing ? 5 : 0)
-                .padding(.leading, message.side == .incoming ? 5 : 0)
-                .background(backgroundColor, in: TelegramBubbleShape(isOutgoing: message.side == .outgoing))
-                .contextMenu {
-                    Button {
-                        onReact("👍")
-                    } label: {
-                        Label("Like 👍", systemImage: "hand.thumbsup")
-                    }
-                    Button {
-                        onReact("❤️")
-                    } label: {
-                        Label("Heart ❤️", systemImage: "heart")
-                    }
-                    Button {
-                        onReact("🔥")
-                    } label: {
-                        Label("Fire 🔥", systemImage: "flame")
-                    }
-                    Button {
-                        onReact("🎉")
-                    } label: {
-                        Label("Party 🎉", systemImage: "party.popper")
-                    }
-                    Divider()
-                    Button {
-                        if case let .text(txt) = message.payload {
-                            UIPasteboard.general.string = txt
+            switch message.payload {
+            case let .videoNote(duration):
+                VideoNoteBubble(
+                    duration: duration,
+                    time: message.time,
+                    isOutgoing: message.side == .outgoing,
+                    onReact: onReact,
+                    onDelete: onDelete
+                )
+            case let .sticker(name, emoji):
+                StickerBubble(
+                    name: name,
+                    emoji: emoji,
+                    time: message.time,
+                    isOutgoing: message.side == .outgoing,
+                    onReact: onReact,
+                    onDelete: onDelete
+                )
+            default:
+                content
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .padding(.trailing, message.side == .outgoing ? 5 : 0)
+                    .padding(.leading, message.side == .incoming ? 5 : 0)
+                    .background(backgroundColor, in: TelegramBubbleShape(isOutgoing: message.side == .outgoing))
+                    .contextMenu {
+                        Button {
+                            onReact("👍")
+                        } label: {
+                            Label("Like 👍", systemImage: "hand.thumbsup")
                         }
-                    } label: {
-                        Label("Copy Text", systemImage: "doc.on.doc")
+                        Button {
+                            onReact("❤️")
+                        } label: {
+                            Label("Heart ❤️", systemImage: "heart")
+                        }
+                        Button {
+                            onReact("🔥")
+                        } label: {
+                            Label("Fire 🔥", systemImage: "flame")
+                        }
+                        Button {
+                            onReact("🎉")
+                        } label: {
+                            Label("Party 🎉", systemImage: "party.popper")
+                        }
+                        Divider()
+                        Button {
+                            if case let .text(txt) = message.payload {
+                                UIPasteboard.general.string = txt
+                            }
+                        } label: {
+                            Label("Copy Text", systemImage: "doc.on.doc")
+                        }
+                        Button(role: .destructive) {
+                            onDelete()
+                        } label: {
+                            Label("Delete Message", systemImage: "trash")
+                        }
                     }
-                    Button(role: .destructive) {
-                        onDelete()
-                    } label: {
-                        Label("Delete Message", systemImage: "trash")
-                    }
-                }
+            }
 
             if message.side == .incoming {
                 Spacer(minLength: 40)
@@ -605,6 +694,8 @@ private struct MessageBubble: View {
                 }
                 .foregroundStyle(foregroundColor)
             }
+        case .videoNote, .sticker:
+            EmptyView()
         }
     }
 
@@ -1024,5 +1115,409 @@ private struct VoiceMessageBubble: View {
                 animatedHeights = [10, 20, 14, 26, 12, 18, 8, 22, 16, 10, 14, 20, 12, 8]
             }
         }
+    }
+}
+
+private struct VideoNoteBubble: View {
+    let duration: String
+    let time: String
+    let isOutgoing: Bool
+    let onReact: (String) -> Void
+    let onDelete: () -> Void
+
+    @State private var isPlaying = false
+    @State private var progress: CGFloat = 0.0
+    @State private var animationTimer: Task<Void, Never>?
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(hex: 0x1A2332),
+                                Color(hex: 0x0F172A),
+                                Color(hex: 0x1E293B)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+
+                ZStack {
+                    Image(systemName: isOutgoing ? "person.crop.circle.fill" : "sparkles")
+                        .font(.system(size: 76))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color(hex: 0x60A5FA), Color(hex: 0xA855F7)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .scaleEffect(isPlaying ? 1.08 : 1.0)
+                        .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isPlaying)
+
+                    Circle()
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.18), Color.clear],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 1
+                        )
+                }
+
+                if !isPlaying {
+                    Circle()
+                        .fill(Color.black.opacity(0.55))
+                        .frame(width: 54, height: 54)
+                        .overlay {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 22))
+                                .foregroundStyle(.white)
+                                .offset(x: 2)
+                        }
+                        .transition(.scale.combined(with: .opacity))
+                }
+
+                Circle()
+                    .stroke(Color.white.opacity(0.15), lineWidth: 3.5)
+                    .frame(width: 196, height: 196)
+
+                Circle()
+                    .trim(from: 0, to: isPlaying ? progress : 1.0)
+                    .stroke(
+                        LinearGradient(
+                            colors: [TelegramPalette.skyBlue, Color(hex: 0x60A5FA)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        style: StrokeStyle(lineWidth: 3.5, lineCap: .round)
+                    )
+                    .frame(width: 196, height: 196)
+                    .rotationEffect(.degrees(-90))
+                    .animation(.linear(duration: 0.2), value: progress)
+            }
+            .frame(width: 200, height: 200)
+            .clipShape(Circle())
+            .shadow(color: Color.black.opacity(0.4), radius: 10, y: 5)
+            .onTapGesture {
+                togglePlayback()
+            }
+
+            HStack(spacing: 4) {
+                if isPlaying {
+                    Circle()
+                        .fill(Color(hex: 0x34D399))
+                        .frame(width: 6, height: 6)
+                }
+
+                Text(isPlaying ? String(format: "0:0%d", Int(progress * 4)) : duration)
+                    .font(.system(size: 11, weight: .semibold))
+
+                Text(time)
+                    .font(.system(size: 10))
+
+                if isOutgoing {
+                    HStack(spacing: -3) {
+                        Image(systemName: "checkmark")
+                        Image(systemName: "checkmark")
+                    }
+                    .font(.system(size: 9, weight: .bold))
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.black.opacity(0.65), in: Capsule())
+            .padding(6)
+        }
+        .contextMenu {
+            Button {
+                onReact("❤️")
+            } label: {
+                Label("Heart ❤️", systemImage: "heart")
+            }
+            Button {
+                onReact("🔥")
+            } label: {
+                Label("Fire 🔥", systemImage: "flame")
+            }
+            Button {
+                onReact("👏")
+            } label: {
+                Label("Clap 👏", systemImage: "hands.clap")
+            }
+            Divider()
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Label("Delete Video Note", systemImage: "trash")
+            }
+        }
+    }
+
+    private func togglePlayback() {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        isPlaying.toggle()
+        if isPlaying {
+            progress = 0.0
+            animationTimer?.cancel()
+            animationTimer = Task {
+                for i in 1...20 {
+                    guard isPlaying else { break }
+                    try? await Task.sleep(nanoseconds: 200_000_000)
+                    withAnimation {
+                        progress = CGFloat(i) / 20.0
+                    }
+                }
+                isPlaying = false
+                progress = 0.0
+            }
+        } else {
+            animationTimer?.cancel()
+            progress = 0.0
+        }
+    }
+}
+
+private struct StickerBubble: View {
+    let name: String
+    let emoji: String
+    let time: String
+    let isOutgoing: Bool
+    let onReact: (String) -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            VStack(spacing: 4) {
+                Text(emoji)
+                    .font(.system(size: 100))
+                    .shadow(color: Color.black.opacity(0.35), radius: 8, y: 4)
+            }
+            .frame(width: 130, height: 130)
+
+            HStack(spacing: 3) {
+                Text(time)
+                    .font(.system(size: 10, weight: .medium))
+
+                if isOutgoing {
+                    HStack(spacing: -3) {
+                        Image(systemName: "checkmark")
+                        Image(systemName: "checkmark")
+                    }
+                    .font(.system(size: 8, weight: .bold))
+                }
+            }
+            .foregroundStyle(.white.opacity(0.9))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2.5)
+            .background(Color.black.opacity(0.45), in: Capsule())
+            .padding(4)
+        }
+        .contextMenu {
+            Button {
+                onReact("❤️")
+            } label: {
+                Label("Heart ❤️", systemImage: "heart")
+            }
+            Button {
+                onReact("🔥")
+            } label: {
+                Label("Fire 🔥", systemImage: "flame")
+            }
+            Divider()
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Label("Delete Sticker", systemImage: "trash")
+            }
+        }
+    }
+}
+
+private struct StickerEmojiSheet: View {
+    let onSendSticker: (String, String) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var selectedTab: StickerTab = .stickers
+
+    enum StickerTab: String, CaseIterable, Identifiable {
+        case stickers = "Stickers"
+        case emoji = "Emoji"
+        case gifs = "GIFs"
+
+        var id: String { rawValue }
+    }
+
+    struct StickerItem: Identifiable {
+        let id = UUID()
+        let name: String
+        let emoji: String
+    }
+
+    private let stickerPacks: [String: [StickerItem]] = [
+        "AI Agent Essentials": [
+            StickerItem(name: "Robot Joy", emoji: "🤖"),
+            StickerItem(name: "Quantum Brain", emoji: "🧠"),
+            StickerItem(name: "Cosmic Spark", emoji: "✨"),
+            StickerItem(name: "Rocket Launch", emoji: "🚀"),
+            StickerItem(name: "Lightning Fast", emoji: "⚡️"),
+            StickerItem(name: "Fire Code", emoji: "🔥"),
+            StickerItem(name: "Alien Intelligence", emoji: "👾"),
+            StickerItem(name: "Celebration", emoji: "🎉")
+        ],
+        "Telegram Classics": [
+            StickerItem(name: "Duck Cool", emoji: "🦆"),
+            StickerItem(name: "Sunglasses", emoji: "😎"),
+            StickerItem(name: "Mind Blown", emoji: "🤯"),
+            StickerItem(name: "Heart Eyes", emoji: "😍"),
+            StickerItem(name: "Thinking Deeply", emoji: "🧐"),
+            StickerItem(name: "Super Thumbs Up", emoji: "👍"),
+            StickerItem(name: "Magic Crystal", emoji: "🔮"),
+            StickerItem(name: "Gem", emoji: "💎")
+        ]
+    ]
+
+    private let emojisList: [String] = [
+        "😀", "😃", "😄", "😁", "😆", "🥹", "😅", "😂", "🤣", "🥲", "☺️", "😊",
+        "😇", "🙂", "🙃", "😉", "😌", "😍", "🥰", "😘", "😗", "😙", "😚", "😋",
+        "😛", "😝", "😜", "🤪", "🤨", "🧐", "🤓", "😎", "🥸", "🤩", "🥳", "😏",
+        "🔥", "💯", "✨", "💫", "⭐️", "🌟", "⚡️", "💥", "❤️", "🧡", "💛", "💚",
+        "💙", "💜", "🖤", "🤍", "🤎", "💔", "❣️", "💕", "💞", "💓", "💗", "💖"
+    ]
+
+    private let gifItems: [(title: String, icon: String, color: Color)] = [
+        ("LGTM Ship It", "shippingbox.fill", Color(hex: 0x10B981)),
+        ("Code Compiling", "gearshape.arrow.triangle.2.circlepath", Color(hex: 0x3B82F6)),
+        ("Thinking AI", "brain.head.profile", Color(hex: 0x8B5CF6)),
+        ("Mind Blown", "bolt.fill", Color(hex: 0xF59E0B)),
+        ("Celebration 100", "party.popper.fill", Color(hex: 0xEC4899)),
+        ("Coffee Break", "cup.and.saucer.fill", Color(hex: 0x6366F1))
+    ]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            RoundedRectangle(cornerRadius: 3)
+                .fill(Color.white.opacity(0.3))
+                .frame(width: 36, height: 4)
+                .padding(.top, 8)
+                .padding(.bottom, 12)
+
+            HStack(spacing: 8) {
+                ForEach(StickerTab.allCases) { tab in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedTab = tab
+                        }
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    } label: {
+                        Text(tab.rawValue)
+                            .font(.system(size: 14, weight: selectedTab == tab ? .bold : .medium))
+                            .foregroundStyle(selectedTab == tab ? .white : TelegramPalette.mutedText)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 7)
+                            .background(
+                                selectedTab == tab ? Color.white.opacity(0.16) : Color.clear,
+                                in: Capsule()
+                            )
+                    }
+                }
+            }
+            .padding(.bottom, 10)
+
+            Divider()
+                .background(TelegramPalette.separator)
+
+            ScrollView(showsIndicators: false) {
+                switch selectedTab {
+                case .stickers:
+                    VStack(alignment: .leading, spacing: 18) {
+                        ForEach(Array(stickerPacks.keys.sorted()), id: \.self) { packName in
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text(packName.uppercased())
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(TelegramPalette.mutedText)
+                                    .padding(.horizontal, 16)
+
+                                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: 4), spacing: 16) {
+                                    if let items = stickerPacks[packName] {
+                                        ForEach(items) { item in
+                                            Button {
+                                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                                onSendSticker(item.name, item.emoji)
+                                                dismiss()
+                                            } label: {
+                                                VStack(spacing: 4) {
+                                                    Text(item.emoji)
+                                                        .font(.system(size: 46))
+                                                    Text(item.name)
+                                                        .font(.system(size: 10, weight: .medium))
+                                                        .foregroundStyle(.white.opacity(0.7))
+                                                        .lineLimit(1)
+                                                }
+                                                .frame(maxWidth: .infinity)
+                                                .padding(.vertical, 8)
+                                                .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, 16)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 14)
+
+                case .emoji:
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 6), spacing: 16) {
+                        ForEach(emojisList, id: \.self) { em in
+                            Button {
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                onSendSticker("Emoji", em)
+                                dismiss()
+                            } label: {
+                                Text(em)
+                                    .font(.system(size: 34))
+                                    .frame(width: 48, height: 48)
+                            }
+                        }
+                    }
+                    .padding(16)
+
+                case .gifs:
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                        ForEach(gifItems, id: \.title) { item in
+                            Button {
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                onSendSticker(item.title, "🎬")
+                                dismiss()
+                            } label: {
+                                VStack(spacing: 8) {
+                                    Image(systemName: item.icon)
+                                        .font(.system(size: 32))
+                                        .foregroundStyle(item.color)
+                                    Text(item.title)
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(.white)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 90)
+                                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(16)
+                }
+            }
+        }
+        .background(TelegramPalette.backgroundElevated.ignoresSafeArea())
+        .presentationDetents([.fraction(0.55), .large])
+        .presentationDragIndicator(.hidden)
     }
 }

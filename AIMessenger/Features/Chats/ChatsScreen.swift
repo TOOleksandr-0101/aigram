@@ -7,6 +7,7 @@ struct ChatsScreen: View {
     @State private var showNewChatSheet = false
     @State private var searchText = ""
     @State private var selectedFolder: ChatFolder = .all
+    @State private var activeStory: TelegramStory?
 
     enum ChatFolder: String, CaseIterable, Identifiable {
         case all = "All Chats"
@@ -20,6 +21,7 @@ struct ChatsScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            storiesBar
             chatsList
         }
         .background(TelegramPalette.backgroundPrimary)
@@ -27,6 +29,13 @@ struct ChatsScreen: View {
             NewChatSheet { selectedThread in
                 onOpenThread(selectedThread)
             }
+        }
+        .fullScreenCover(item: $activeStory) { story in
+            TelegramStoryViewer(
+                initialStory: story,
+                allStories: TelegramStory.sampleStories,
+                onOpenThread: onOpenThread
+            )
         }
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
@@ -178,6 +187,81 @@ struct ChatsScreen: View {
         case .unread:
             let count = threads.filter { $0.badge != nil }.count
             return count > 0 ? count : nil
+        }
+    }
+
+    private var storiesBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 14) {
+                Button {
+                    activeStory = TelegramStory.sampleStories[0]
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                } label: {
+                    VStack(spacing: 6) {
+                        ZStack(alignment: .bottomTrailing) {
+                            AvatarView(kind: .saved, showsOnlineDot: false)
+                                .frame(width: 58, height: 58)
+                                .overlay {
+                                    Circle()
+                                        .stroke(Color.white.opacity(0.2), lineWidth: 1.5)
+                                }
+
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 20))
+                                .foregroundStyle(TelegramPalette.skyBlue)
+                                .background(Color.black, in: Circle())
+                                .offset(x: 2, y: 2)
+                        }
+
+                        Text("My Story")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                    }
+                    .frame(width: 66)
+                }
+                .buttonStyle(.plain)
+
+                ForEach(TelegramStory.sampleStories.dropFirst()) { story in
+                    Button {
+                        activeStory = story
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    } label: {
+                        VStack(spacing: 6) {
+                            ZStack {
+                                Circle()
+                                    .stroke(
+                                        LinearGradient(
+                                            colors: [Color(hex: 0xE052A0), Color(hex: 0xF15C42), Color(hex: 0x0088CC)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        lineWidth: 2.2
+                                    )
+                                    .frame(width: 64, height: 64)
+
+                                AvatarView(kind: story.authorAvatar, showsOnlineDot: false)
+                                    .frame(width: 56, height: 56)
+                            }
+
+                            Text(story.authorName)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                        }
+                        .frame(width: 66)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+        }
+        .background(TelegramPalette.backgroundElevated)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(TelegramPalette.separator)
+                .frame(height: 0.5)
         }
     }
 
@@ -610,5 +694,356 @@ struct NewChatSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+}
+
+struct TelegramStory: Identifiable, Equatable {
+    let id: String
+    let authorName: String
+    let authorAvatar: ChatAvatarKind
+    let timeAgo: String
+    let title: String
+    let text: String
+    let tags: [String]
+    let symbol: String
+    let gradientColors: [Color]
+    let threadId: String
+
+    static let sampleStories: [TelegramStory] = [
+        TelegramStory(
+            id: "my-story",
+            authorName: "My Story",
+            authorAvatar: .saved,
+            timeAgo: "Just now",
+            title: "Autonomous AI Dev Sprint",
+            text: "Building an AI-native Telegram experience in native SwiftUI. All agent personas operate with shared context and real-time streaming.",
+            tags: ["#SwiftUI", "#AutonomousAI", "#TelegramiOS"],
+            symbol: "sparkles",
+            gradientColors: [Color(hex: 0x1E3A8A), Color(hex: 0x3B82F6), Color(hex: 0x06B6D4)],
+            threadId: "saved-messages"
+        ),
+        TelegramStory(
+            id: "seminar-circle",
+            authorName: "Seminar Circle",
+            authorAvatar: .seminarCircle,
+            timeAgo: "2h ago",
+            title: "Sprint v2.4 Consensus Reached",
+            text: "All 3 agents (Study Room, Research Desk, UX) approved the new async pipeline architecture. Zero blocking threads detected!",
+            tags: ["#SeminarCircle", "#MultiAgent", "#Consensus"],
+            symbol: "person.3.sequence.fill",
+            gradientColors: [Color(hex: 0x312E81), Color(hex: 0x4F46E5), Color(hex: 0x7C3AED)],
+            threadId: "seminar-circle"
+        ),
+        TelegramStory(
+            id: "design-scout",
+            authorName: "Design Scout",
+            authorAvatar: .uxCopilot,
+            timeAgo: "3h ago",
+            title: "Liquid Glass Dark Theme",
+            text: "Completed pixel-perfect Telegram iOS styling: procedural doodle wallpaper, custom speech tails, and circular video notes.",
+            tags: ["#TelegramUX", "#DesignSystem", "#iOS18"],
+            symbol: "paintbrush.pointed.fill",
+            gradientColors: [Color(hex: 0x831843), Color(hex: 0xBE185D), Color(hex: 0xFB7185)],
+            threadId: "ux-copilot"
+        ),
+        TelegramStory(
+            id: "product-coach",
+            authorName: "Product Coach",
+            authorAvatar: .researchBot,
+            timeAgo: "5h ago",
+            title: "Retention Strategy 2026",
+            text: "Adding interactive AI voice notes and stickers increased simulation engagement by 320%. Users love tactile feedback!",
+            tags: ["#ProductMetrics", "#Growth", "#AI"],
+            symbol: "chart.line.uptrend.xyaxis",
+            gradientColors: [Color(hex: 0x064E3B), Color(hex: 0x059669), Color(hex: 0x10B981)],
+            threadId: "product-coach"
+        ),
+        TelegramStory(
+            id: "code-partner",
+            authorName: "Code Partner",
+            authorAvatar: .codeAgents,
+            timeAgo: "7h ago",
+            title: "Zero Compilation Warnings",
+            text: "All Swift concurrency actor boundaries and derived data paths have been isolated. Build times dropped to sub-3 seconds.",
+            tags: ["#SwiftConcurrency", "#Architecture", "#CleanCode"],
+            symbol: "chevron.left.forwardslash.chevron.right",
+            gradientColors: [Color(hex: 0x431407), Color(hex: 0xEA580C), Color(hex: 0xF97316)],
+            threadId: "code-partner"
+        )
+    ]
+}
+
+struct TelegramStoryViewer: View {
+    let initialStory: TelegramStory
+    let allStories: [TelegramStory]
+    let onOpenThread: (ChatThread) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var aiWorkspace: AIWorkspace
+
+    @State private var currentIndex: Int = 0
+    @State private var progress: CGFloat = 0.0
+    @State private var isPaused: Bool = false
+    @State private var replyText: String = ""
+    @State private var floatingHearts: [HeartParticle] = []
+    @State private var timerTask: Task<Void, Never>?
+
+    struct HeartParticle: Identifiable {
+        let id = UUID()
+        var xOffset: CGFloat
+        var yOffset: CGFloat
+        var opacity: Double
+        var scale: CGFloat
+    }
+
+    private var currentStory: TelegramStory {
+        allStories[min(max(currentIndex, 0), allStories.count - 1)]
+    }
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: currentStory.gradientColors,
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+            .overlay {
+                Circle()
+                    .fill(Color.white.opacity(0.08))
+                    .frame(width: 320, height: 320)
+                    .blur(radius: 50)
+                    .offset(x: -80, y: -120)
+            }
+
+            HStack(spacing: 0) {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        goToPrevious()
+                    }
+                    .frame(width: 100)
+
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        goToNext()
+                    }
+            }
+
+            VStack(spacing: 0) {
+                HStack(spacing: 4) {
+                    ForEach(0..<allStories.count, id: \.self) { idx in
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule()
+                                    .fill(Color.white.opacity(0.3))
+
+                                Capsule()
+                                    .fill(Color.white)
+                                    .frame(width: idx < currentIndex ? geo.size.width : (idx == currentIndex ? geo.size.width * progress : 0))
+                            }
+                        }
+                        .frame(height: 2.5)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 54)
+
+                HStack(spacing: 10) {
+                    AvatarView(kind: currentStory.authorAvatar, showsOnlineDot: false)
+                        .frame(width: 36, height: 36)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(currentStory.authorName)
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(.white)
+
+                        Text(currentStory.timeAgo)
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.white.opacity(0.7))
+                    }
+
+                    Spacer()
+
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 32, height: 32)
+                            .background(Color.black.opacity(0.4), in: Circle())
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.top, 12)
+
+                Spacer()
+
+                VStack(spacing: 16) {
+                    Image(systemName: currentStory.symbol)
+                        .font(.system(size: 52, weight: .medium))
+                        .foregroundStyle(.white)
+                        .shadow(color: Color.black.opacity(0.3), radius: 10, y: 6)
+
+                    Text(currentStory.title)
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 16)
+
+                    Text(currentStory.text)
+                        .font(.system(size: 15, weight: .medium))
+                        .lineSpacing(4)
+                        .foregroundStyle(.white.opacity(0.92))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 16)
+
+                    HStack(spacing: 8) {
+                        ForEach(currentStory.tags, id: \.self) { tag in
+                            Text(tag)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Color.white.opacity(0.18), in: Capsule())
+                        }
+                    }
+                }
+                .padding(.vertical, 28)
+                .padding(.horizontal, 16)
+                .background(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(Color.black.opacity(0.32))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                        }
+                )
+                .padding(.horizontal, 18)
+
+                Spacer()
+
+                HStack(spacing: 12) {
+                    HStack {
+                        TextField("Send a message...", text: $replyText)
+                            .font(.system(size: 15))
+                            .foregroundStyle(.white)
+
+                        if replyText.isEmpty == false {
+                            Button {
+                                sendStoryReply()
+                            } label: {
+                                Image(systemName: "arrow.up.circle.fill")
+                                    .font(.system(size: 26))
+                                    .foregroundStyle(TelegramPalette.skyBlue)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(height: 44)
+                    .background(Color.white.opacity(0.2), in: Capsule())
+
+                    Button {
+                        spawnHeart()
+                    } label: {
+                        Image(systemName: "heart.fill")
+                            .font(.system(size: 24))
+                            .foregroundStyle(Color(hex: 0xFF3B30))
+                            .frame(width: 44, height: 44)
+                            .background(Color.white.opacity(0.2), in: Circle())
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.bottom, 24)
+            }
+
+            ForEach(floatingHearts) { heart in
+                Image(systemName: "heart.fill")
+                    .font(.system(size: 32))
+                    .foregroundStyle(Color(hex: 0xFF2D55))
+                    .scaleEffect(heart.scale)
+                    .opacity(heart.opacity)
+                    .offset(x: heart.xOffset, y: heart.yOffset)
+            }
+        }
+        .onAppear {
+            if let idx = allStories.firstIndex(of: initialStory) {
+                currentIndex = idx
+            }
+            startTimer()
+        }
+        .onDisappear {
+            timerTask?.cancel()
+        }
+    }
+
+    private func startTimer() {
+        timerTask?.cancel()
+        progress = 0.0
+        timerTask = Task {
+            for i in 1...50 {
+                guard !Task.isCancelled else { return }
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                if !isPaused {
+                    await MainActor.run {
+                        progress = CGFloat(i) / 50.0
+                    }
+                }
+            }
+            await MainActor.run {
+                goToNext()
+            }
+        }
+    }
+
+    private func goToNext() {
+        if currentIndex < allStories.count - 1 {
+            currentIndex += 1
+            startTimer()
+        } else {
+            dismiss()
+        }
+    }
+
+    private func goToPrevious() {
+        if currentIndex > 0 {
+            currentIndex -= 1
+            startTimer()
+        } else {
+            startTimer()
+        }
+    }
+
+    private func spawnHeart() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        let heart = HeartParticle(
+            xOffset: CGFloat.random(in: 80...140),
+            yOffset: 240,
+            opacity: 1.0,
+            scale: 0.6
+        )
+        floatingHearts.append(heart)
+
+        withAnimation(.easeOut(duration: 1.2)) {
+            if let idx = floatingHearts.firstIndex(where: { $0.id == heart.id }) {
+                floatingHearts[idx].yOffset -= CGFloat.random(in: 180...300)
+                floatingHearts[idx].xOffset += CGFloat.random(in: -30...30)
+                floatingHearts[idx].opacity = 0.0
+                floatingHearts[idx].scale = 1.3
+            }
+        }
+    }
+
+    private func sendStoryReply() {
+        guard replyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        if let thread = aiWorkspace.threads.first(where: { $0.id == currentStory.threadId }) {
+            aiWorkspace.sendTextMessage("Story reply: \"\(replyText)\"", to: thread)
+            dismiss()
+            onOpenThread(thread)
+        } else {
+            dismiss()
+        }
     }
 }

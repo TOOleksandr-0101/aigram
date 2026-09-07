@@ -187,6 +187,42 @@ final class AIWorkspace: ObservableObject {
         appendMessage(msg, to: thread)
     }
 
+    func sendVideoNote(duration: String, to thread: ChatThread) {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        let msg = ConversationMessage(
+            id: UUID().uuidString,
+            side: .outgoing,
+            payload: .videoNote(duration: duration),
+            time: formatter.string(from: Date())
+        )
+        appendMessage(msg, to: thread)
+    }
+
+    func sendSticker(name: String, emoji: String, to thread: ChatThread) {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        let msg = ConversationMessage(
+            id: UUID().uuidString,
+            side: .outgoing,
+            payload: .sticker(name: name, emoji: emoji),
+            time: formatter.string(from: Date())
+        )
+        appendMessage(msg, to: thread)
+    }
+
+    func sendTextMessage(_ text: String, to thread: ChatThread) {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        let msg = ConversationMessage(
+            id: UUID().uuidString,
+            side: .outgoing,
+            payload: .text(text),
+            time: formatter.string(from: Date())
+        )
+        appendMessage(msg, to: thread)
+    }
+
     func addNewAgent(name: String, username: String, role: String, bio: String, avatar: ChatAvatarKind) {
         let cleanId = username.lowercased().replacingOccurrences(of: "@", with: "").replacingOccurrences(of: " ", with: "-")
         let contact = ContactProfile(
@@ -384,6 +420,10 @@ final class AIWorkspace: ObservableObject {
             baseText = "Shared image: \(name)"
         case let .voice(duration):
             baseText = "Voice message (\(duration))"
+        case let .videoNote(duration):
+            baseText = "Video message (\(duration))"
+        case let .sticker(_, emoji):
+            baseText = "\(emoji) Sticker"
         }
 
         if let authorName = message.authorName, message.side == .incoming {
