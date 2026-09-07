@@ -6,6 +6,16 @@ struct ChatsScreen: View {
     @EnvironmentObject private var aiWorkspace: AIWorkspace
     @State private var showNewChatSheet = false
     @State private var searchText = ""
+    @State private var selectedFolder: ChatFolder = .all
+
+    enum ChatFolder: String, CaseIterable, Identifiable {
+        case all = "All Chats"
+        case agents = "AI Agents"
+        case groups = "Groups"
+        case unread = "Unread"
+
+        var id: String { rawValue }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -23,7 +33,19 @@ struct ChatsScreen: View {
     }
 
     private var filteredThreads: [ChatThreadSummary] {
-        let summaries = aiWorkspace.orderedSummaries()
+        var summaries = aiWorkspace.orderedSummaries()
+
+        switch selectedFolder {
+        case .all:
+            break
+        case .agents:
+            summaries = summaries.filter { $0.thread.isGroup == false }
+        case .groups:
+            summaries = summaries.filter { $0.thread.isGroup == true }
+        case .unread:
+            summaries = summaries.filter { $0.thread.badge != nil }
+        }
+
         guard searchText.isEmpty == false else { return summaries }
 
         return summaries.filter { summary in
@@ -32,7 +54,7 @@ struct ChatsScreen: View {
     }
 
     private var header: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             HStack {
                 Button("Edit") {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -78,9 +100,11 @@ struct ChatsScreen: View {
             .frame(height: 36)
             .background(TelegramPalette.searchFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .padding(.horizontal, 10)
+
+            foldersBar
         }
         .padding(.top, 8)
-        .padding(.bottom, 10)
+        .padding(.bottom, 0)
         .background(TelegramPalette.backgroundElevated)
         .overlay(alignment: .bottom) {
             Rectangle()
@@ -89,8 +113,94 @@ struct ChatsScreen: View {
         }
     }
 
+    private var foldersBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 20) {
+                ForEach(ChatFolder.allCases) { folder in
+                    Button {
+                        withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+                            selectedFolder = folder
+                        }
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    } label: {
+                        VStack(spacing: 6) {
+                            HStack(spacing: 6) {
+                                Text(folder.rawValue)
+                                    .font(.system(size: 15, weight: selectedFolder == folder ? .semibold : .medium))
+                                    .foregroundStyle(selectedFolder == folder ? .white : TelegramPalette.mutedText)
+
+                                if let count = unreadCount(for: folder) {
+                                    Text("\(count)")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundStyle(selectedFolder == folder ? .white : Color.black)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(
+                                            selectedFolder == folder ? TelegramPalette.accentBlue : TelegramPalette.mutedText.opacity(0.8),
+                                            in: Capsule()
+                                        )
+                                }
+                            }
+                            .padding(.top, 4)
+
+                            ZStack {
+                                if selectedFolder == folder {
+                                    RoundedRectangle(cornerRadius: 1.5)
+                                        .fill(TelegramPalette.accentBlue)
+                                        .frame(height: 2.5)
+                                } else {
+                                    Color.clear
+                                        .frame(height: 2.5)
+                                }
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+        .frame(height: 38)
+    }
+
+    private func unreadCount(for folder: ChatFolder) -> Int? {
+        let threads = aiWorkspace.threads
+        switch folder {
+        case .all:
+            let count = threads.filter { $0.badge != nil }.count
+            return count > 0 ? count : nil
+        case .agents:
+            let count = threads.filter { !$0.isGroup && $0.badge != nil }.count
+            return count > 0 ? count : nil
+        case .groups:
+            let count = threads.filter { $0.isGroup && $0.badge != nil }.count
+            return count > 0 ? count : nil
+        case .unread:
+            let count = threads.filter { $0.badge != nil }.count
+            return count > 0 ? count : nil
+        }
+    }
+
     private var chatsList: some View {
         List {
+            if filteredThreads.isEmpty {
+                VStack(spacing: 12) {
+                    Spacer().frame(height: 60)
+                    Image(systemName: selectedFolder == .unread ? "tray.fill" : "bubble.left.and.bubble.right.fill")
+                        .font(.system(size: 48))
+                        .foregroundStyle(TelegramPalette.mutedText.opacity(0.5))
+                    Text(selectedFolder == .unread ? "No Unread Chats" : "No Chats in Folder")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.white)
+                    Text("All messages are up to date.")
+                        .font(.system(size: 14))
+                        .foregroundStyle(TelegramPalette.mutedText)
+                }
+                .frame(maxWidth: .infinity)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            }
+
             ForEach(Array(filteredThreads.enumerated()), id: \.element.id) { index, summary in
                 Button {
                     aiWorkspace.markAsRead(threadId: summary.thread.id)

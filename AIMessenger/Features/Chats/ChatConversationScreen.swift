@@ -8,6 +8,7 @@ struct ChatConversationScreen: View {
     @State private var draft = ""
     @State private var messages: [ConversationMessage] = []
     @State private var isSending = false
+    @State private var currentTypingBotName: String?
     @State private var isCallPresented = false
     @State private var showAttachmentDialog = false
     @State private var errorText: String?
@@ -20,7 +21,9 @@ struct ChatConversationScreen: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 10) {
+                VStack(spacing: 8) {
+                    ChatDatePill(title: "Today")
+
                     ForEach(messages) { message in
                         MessageBubble(
                             message: message,
@@ -40,12 +43,12 @@ struct ChatConversationScreen: View {
                     }
 
                     if isSending {
-                        TypingBubble()
+                        TypingBubble(authorName: currentTypingBotName)
                             .id("typingBubble")
                     }
                 }
-                .padding(.horizontal, 10)
-                .padding(.top, 12)
+                .padding(.horizontal, 8)
+                .padding(.top, 8)
                 .padding(.bottom, 24)
             }
             .onChange(of: messages.count) { _ in
@@ -63,7 +66,7 @@ struct ChatConversationScreen: View {
             inputBar
         }
         .scrollContentBackground(.hidden)
-        .background(chatBackground.ignoresSafeArea())
+        .background(TelegramDoodleWallpaper().ignoresSafeArea())
         .preferredColorScheme(.dark)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarHidden(true)
@@ -114,7 +117,7 @@ struct ChatConversationScreen: View {
 
                 if isSending {
                     HStack(spacing: 2) {
-                        Text("typing")
+                        Text(currentTypingBotName != nil ? "\(currentTypingBotName!) is typing" : "typing")
                             .font(.system(size: 13))
                             .foregroundStyle(TelegramPalette.skyBlue)
                         TypingHeaderDots()
@@ -286,14 +289,30 @@ struct ChatConversationScreen: View {
                 errorText = "OpenRouter is not connected yet. This reply uses the built-in offline fallback."
             }
 
-            messages.append(contentsOf: incomingMessages(from: reply))
-            persistMessages()
+            let incoming = incomingMessages(from: reply)
+            if thread.isGroup && incoming.count > 1 {
+                for (idx, msg) in incoming.enumerated() {
+                    currentTypingBotName = msg.authorName ?? "Agent"
+                    try? await Task.sleep(nanoseconds: idx == 0 ? 1_000_000_000 : 1_500_000_000)
+                    messages.append(msg)
+                    persistMessages()
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                }
+            } else {
+                if let author = incoming.first?.authorName {
+                    currentTypingBotName = author
+                }
+                try? await Task.sleep(nanoseconds: 750_000_000)
+                messages.append(contentsOf: incoming)
+                persistMessages()
+            }
         } catch {
             errorText = error.localizedDescription
             messages.append(contentsOf: incomingMessages(from: offlineFallbackReply(for: trimmedDraft)))
             persistMessages()
         }
 
+        currentTypingBotName = nil
         isSending = false
     }
 
@@ -431,8 +450,10 @@ private struct MessageBubble: View {
 
             content
                 .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(backgroundColor, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .padding(.vertical, 8)
+                .padding(.trailing, message.side == .outgoing ? 5 : 0)
+                .padding(.leading, message.side == .incoming ? 5 : 0)
+                .background(backgroundColor, in: TelegramBubbleShape(isOutgoing: message.side == .outgoing))
                 .contextMenu {
                     Button {
                         onReact("👍")
@@ -525,41 +546,12 @@ private struct MessageBubble: View {
                 .foregroundStyle(foregroundColor.opacity(0.75))
             }
         case let .voice(duration):
-            HStack(spacing: 10) {
-                Image(systemName: "play.fill")
-                    .font(.system(size: 16))
-                    .foregroundStyle(foregroundColor)
-                    .frame(width: 34, height: 34)
-                    .background(Color.white.opacity(0.15), in: Circle())
-
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 2) {
-                        ForEach([10, 20, 14, 26, 12, 18, 8, 22, 16, 10, 14, 20, 12, 8], id: \.self) { barHeight in
-                            RoundedRectangle(cornerRadius: 1.5)
-                                .fill(foregroundColor.opacity(0.8))
-                                .frame(width: 2.5, height: CGFloat(barHeight))
-                        }
-                    }
-                    .frame(height: 26)
-
-                    HStack(spacing: 4) {
-                        Text(duration)
-                            .font(.system(size: 11, weight: .medium))
-                        Spacer()
-                        Text(message.time)
-                            .font(.system(size: 11))
-                        if message.side == .outgoing {
-                            HStack(spacing: -3) {
-                                Image(systemName: "checkmark")
-                                Image(systemName: "checkmark")
-                            }
-                            .font(.system(size: 9, weight: .bold))
-                        }
-                    }
-                    .foregroundStyle(foregroundColor.opacity(0.75))
-                }
-            }
-            .frame(minWidth: 170)
+            VoiceMessageBubble(
+                duration: duration,
+                time: message.time,
+                isOutgoing: message.side == .outgoing,
+                foregroundColor: foregroundColor
+            )
         case let .emoji(value):
             VStack(alignment: message.side == .outgoing ? .trailing : .leading, spacing: 5) {
                 Text(value)
@@ -651,22 +643,32 @@ private struct MessageBubble: View {
 }
 
 private struct TypingBubble: View {
+    var authorName: String? = nil
     @State private var phase = 0
 
     var body: some View {
         HStack {
-            HStack(spacing: 6) {
-                ForEach(0 ..< 3, id: \.self) { index in
-                    Circle()
-                        .fill(Color.black.opacity(0.42))
-                        .frame(width: 7, height: 7)
-                        .scaleEffect(phase == index ? 1.1 : 0.82)
-                        .animation(.easeInOut(duration: 0.35), value: phase)
+            VStack(alignment: .leading, spacing: 4) {
+                if let authorName {
+                    Text(authorName)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(TelegramPalette.accentBlue)
+                }
+
+                HStack(spacing: 6) {
+                    ForEach(0 ..< 3, id: \.self) { index in
+                        Circle()
+                            .fill(Color.black.opacity(0.42))
+                            .frame(width: 7, height: 7)
+                            .scaleEffect(phase == index ? 1.1 : 0.82)
+                            .animation(.easeInOut(duration: 0.35), value: phase)
+                    }
                 }
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(Color.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .padding(.vertical, 10)
+            .padding(.leading, 4)
+            .background(Color.white, in: TelegramBubbleShape(isOutgoing: false))
 
             Spacer(minLength: 40)
         }
@@ -792,5 +794,235 @@ struct ChatConversationScreen_Previews: PreviewProvider {
     static var previews: some View {
         ChatConversationScreen(thread: ChatThread.sampleThreads[0])
             .environmentObject(AIWorkspace())
+    }
+}
+
+struct ChatDatePill: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.85))
+            .padding(.horizontal, 11)
+            .padding(.vertical, 4)
+            .background(Color.black.opacity(0.38), in: Capsule())
+            .padding(.vertical, 4)
+    }
+}
+
+struct TelegramDoodleWallpaper: View {
+    private let doodleIcons: [[String]] = [
+        ["paperplane.fill", "sparkles", "heart.fill", "cup.and.saucer.fill"],
+        ["chevron.left.forwardslash.chevron.right", "star.fill", "music.note", "bolt.fill"],
+        ["bubble.left.fill", "globe.europe.africa.fill", "gearshape.fill", "pawprint.fill"],
+        ["gamecontroller.fill", "lock.fill", "camera.fill", "headphones"]
+    ]
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(hex: 0x161618), Color(hex: 0x0E0E0F)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            GeometryReader { geometry in
+                let columns = 4
+                let rows = Int(geometry.size.height / 75) + 2
+                let cellWidth = geometry.size.width / CGFloat(columns)
+                let cellHeight: CGFloat = 75
+
+                VStack(spacing: 0) {
+                    ForEach(0 ..< rows, id: \.self) { row in
+                        HStack(spacing: 0) {
+                            ForEach(0 ..< columns, id: \.self) { col in
+                                let iconName = doodleIcons[row % doodleIcons.count][col % doodleIcons[0].count]
+                                Image(systemName: iconName)
+                                    .font(.system(size: 22, weight: .light))
+                                    .foregroundStyle(Color.white.opacity(0.045))
+                                    .rotationEffect(.degrees((col % 2 == 0) ? -12 : 12))
+                                    .frame(width: cellWidth, height: cellHeight)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .drawingGroup()
+    }
+}
+
+struct TelegramBubbleShape: Shape {
+    let isOutgoing: Bool
+
+    func path(in rect: CGRect) -> Path {
+        let r: CGFloat = 17
+        let tailSize: CGFloat = 6
+
+        var p = Path()
+
+        if isOutgoing {
+            p.move(to: CGPoint(x: rect.minX + r, y: rect.minY))
+            p.addLine(to: CGPoint(x: rect.maxX - r - tailSize, y: rect.minY))
+            p.addArc(
+                center: CGPoint(x: rect.maxX - r - tailSize, y: rect.minY + r),
+                radius: r,
+                startAngle: .degrees(-90),
+                endAngle: .degrees(0),
+                clockwise: false
+            )
+            p.addLine(to: CGPoint(x: rect.maxX - tailSize, y: rect.maxY - 10))
+            p.addQuadCurve(
+                to: CGPoint(x: rect.maxX, y: rect.maxY),
+                control: CGPoint(x: rect.maxX - tailSize + 1, y: rect.maxY - 2)
+            )
+            p.addQuadCurve(
+                to: CGPoint(x: rect.maxX - tailSize - 5, y: rect.maxY),
+                control: CGPoint(x: rect.maxX - 2, y: rect.maxY)
+            )
+            p.addLine(to: CGPoint(x: rect.minX + r, y: rect.maxY))
+            p.addArc(
+                center: CGPoint(x: rect.minX + r, y: rect.maxY - r),
+                radius: r,
+                startAngle: .degrees(90),
+                endAngle: .degrees(180),
+                clockwise: false
+            )
+            p.addLine(to: CGPoint(x: rect.minX, y: rect.minY + r))
+            p.addArc(
+                center: CGPoint(x: rect.minX + r, y: rect.minY + r),
+                radius: r,
+                startAngle: .degrees(180),
+                endAngle: .degrees(270),
+                clockwise: false
+            )
+            p.closeSubpath()
+        } else {
+            p.move(to: CGPoint(x: rect.minX + r + tailSize, y: rect.minY))
+            p.addLine(to: CGPoint(x: rect.maxX - r, y: rect.minY))
+            p.addArc(
+                center: CGPoint(x: rect.maxX - r, y: rect.minY + r),
+                radius: r,
+                startAngle: .degrees(-90),
+                endAngle: .degrees(0),
+                clockwise: false
+            )
+            p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
+            p.addArc(
+                center: CGPoint(x: rect.maxX - r, y: rect.maxY - r),
+                radius: r,
+                startAngle: .degrees(0),
+                endAngle: .degrees(90),
+                clockwise: false
+            )
+            p.addLine(to: CGPoint(x: rect.minX + tailSize + 5, y: rect.maxY))
+            p.addQuadCurve(
+                to: CGPoint(x: rect.minX, y: rect.maxY),
+                control: CGPoint(x: rect.minX + 2, y: rect.maxY)
+            )
+            p.addQuadCurve(
+                to: CGPoint(x: rect.minX + tailSize, y: rect.maxY - 10),
+                control: CGPoint(x: rect.minX + tailSize - 1, y: rect.maxY - 2)
+            )
+            p.addLine(to: CGPoint(x: rect.minX + tailSize, y: rect.minY + r))
+            p.addArc(
+                center: CGPoint(x: rect.minX + r + tailSize, y: rect.minY + r),
+                radius: r,
+                startAngle: .degrees(180),
+                endAngle: .degrees(270),
+                clockwise: false
+            )
+            p.closeSubpath()
+        }
+
+        return p
+    }
+}
+
+private struct VoiceMessageBubble: View {
+    let duration: String
+    let time: String
+    let isOutgoing: Bool
+    let foregroundColor: Color
+
+    @State private var isPlaying = false
+    @State private var playbackProgress: CGFloat = 0.0
+    @State private var animatedHeights: [CGFloat] = [10, 20, 14, 26, 12, 18, 8, 22, 16, 10, 14, 20, 12, 8]
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button {
+                togglePlayback()
+            } label: {
+                Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                    .font(.system(size: 16))
+                    .foregroundStyle(foregroundColor)
+                    .frame(width: 36, height: 36)
+                    .background(Color.white.opacity(0.18), in: Circle())
+            }
+            .buttonStyle(.plain)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 2) {
+                    ForEach(0 ..< animatedHeights.count, id: \.self) { idx in
+                        RoundedRectangle(cornerRadius: 1.5)
+                            .fill(
+                                CGFloat(idx) / CGFloat(animatedHeights.count) <= playbackProgress ?
+                                    foregroundColor : foregroundColor.opacity(0.4)
+                            )
+                            .frame(width: 2.5, height: animatedHeights[idx])
+                            .animation(.easeInOut(duration: 0.15), value: animatedHeights[idx])
+                    }
+                }
+                .frame(height: 28)
+
+                HStack(spacing: 4) {
+                    Text(isPlaying ? String(format: "0:0%d", Int(playbackProgress * 4)) : duration)
+                        .font(.system(size: 11, weight: .medium))
+                    Spacer()
+                    Text(time)
+                        .font(.system(size: 11))
+                    if isOutgoing {
+                        HStack(spacing: -3) {
+                            Image(systemName: "checkmark")
+                            Image(systemName: "checkmark")
+                        }
+                        .font(.system(size: 9, weight: .bold))
+                    }
+                }
+                .foregroundStyle(foregroundColor.opacity(0.75))
+            }
+        }
+        .frame(minWidth: 175)
+    }
+
+    private func togglePlayback() {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        isPlaying.toggle()
+        if isPlaying {
+            playbackProgress = 0.0
+            Task {
+                for i in 1...10 {
+                    guard isPlaying else { break }
+                    try? await Task.sleep(nanoseconds: 300_000_000)
+                    withAnimation {
+                        playbackProgress = CGFloat(i) / 10.0
+                        animatedHeights = [
+                            CGFloat.random(in: 8...24), CGFloat.random(in: 12...28),
+                            CGFloat.random(in: 10...22), CGFloat.random(in: 14...26),
+                            CGFloat.random(in: 8...20), CGFloat.random(in: 12...26),
+                            CGFloat.random(in: 8...18), CGFloat.random(in: 14...28),
+                            CGFloat.random(in: 10...24), CGFloat.random(in: 8...20),
+                            CGFloat.random(in: 12...22), CGFloat.random(in: 14...26),
+                            CGFloat.random(in: 10...20), CGFloat.random(in: 8...16)
+                        ]
+                    }
+                }
+                isPlaying = false
+                playbackProgress = 0.0
+                animatedHeights = [10, 20, 14, 26, 12, 18, 8, 22, 16, 10, 14, 20, 12, 8]
+            }
+        }
     }
 }
