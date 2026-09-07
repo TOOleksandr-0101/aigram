@@ -9,6 +9,7 @@ struct ChatConversationScreen: View {
     @State private var messages: [ConversationMessage] = []
     @State private var isSending = false
     @State private var isCallPresented = false
+    @State private var showAttachmentDialog = false
     @State private var errorText: String?
     private let openRouterService = OpenRouterService()
 
@@ -17,19 +18,43 @@ struct ChatConversationScreen: View {
     }
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: 10) {
-                ForEach(messages) { message in
-                    MessageBubble(message: message, isGroupThread: thread.isGroup)
-                }
+        ScrollViewReader { proxy in
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 10) {
+                    ForEach(messages) { message in
+                        MessageBubble(
+                            message: message,
+                            isGroupThread: thread.isGroup,
+                            onReact: { emoji in
+                                aiWorkspace.addReaction(emoji: emoji, to: message.id, in: thread)
+                                messages = aiWorkspace.messages(for: thread)
+                            },
+                            onDelete: {
+                                withAnimation {
+                                    aiWorkspace.deleteMessage(messageId: message.id, in: thread)
+                                    messages = aiWorkspace.messages(for: thread)
+                                }
+                            }
+                        )
+                        .id(message.id)
+                    }
 
-                if isSending {
-                    TypingBubble()
+                    if isSending {
+                        TypingBubble()
+                            .id("typingBubble")
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.top, 12)
+                .padding(.bottom, 24)
+            }
+            .onChange(of: messages.count) { _ in
+                if let last = messages.last {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        proxy.scrollTo(last.id, anchor: .bottom)
+                    }
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.top, 12)
-            .padding(.bottom, 24)
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             topBar
@@ -45,6 +70,17 @@ struct ChatConversationScreen: View {
         .navigationBarBackButtonHidden(true)
         .task {
             loadConversationIfNeeded()
+        }
+        .confirmationDialog("Send Attachment", isPresented: $showAttachmentDialog) {
+            Button("Send System Architecture Mockup") {
+                aiWorkspace.sendAttachment(name: "Architecture_V2.png", size: "2.4 MB", to: thread)
+                messages = aiWorkspace.messages(for: thread)
+            }
+            Button("Send UI Wireframe Review") {
+                aiWorkspace.sendAttachment(name: "Wireframe_Screen.png", size: "1.1 MB", to: thread)
+                messages = aiWorkspace.messages(for: thread)
+            }
+            Button("Cancel", role: .cancel) { }
         }
         .fullScreenCover(isPresented: $isCallPresented) {
             TelegramCallView(
@@ -102,7 +138,27 @@ struct ChatConversationScreen: View {
                     .frame(width: 32, height: 32)
             }
 
-            Button {
+            Menu {
+                Button {
+                    aiWorkspace.togglePin(for: thread)
+                } label: {
+                    Label(thread.isPinned ? "Unpin Chat" : "Pin Chat", systemImage: thread.isPinned ? "pin.slash" : "pin")
+                }
+
+                Button {
+                    aiWorkspace.toggleMute(for: thread)
+                } label: {
+                    Label(thread.isMuted ? "Unmute" : "Mute Notifications", systemImage: thread.isMuted ? "bell" : "bell.slash")
+                }
+
+                Divider()
+
+                Button(role: .destructive) {
+                    aiWorkspace.deleteThread(thread)
+                    dismiss()
+                } label: {
+                    Label("Delete Chat", systemImage: "trash")
+                }
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .font(.system(size: 20))
@@ -122,9 +178,13 @@ struct ChatConversationScreen: View {
     private var inputBar: some View {
         HStack(spacing: 10) {
             HStack(spacing: 10) {
-                Image(systemName: "paperclip")
-                    .font(.system(size: 18))
-                    .foregroundStyle(TelegramPalette.mutedText)
+                Button {
+                    showAttachmentDialog = true
+                } label: {
+                    Image(systemName: "paperclip")
+                        .font(.system(size: 18))
+                        .foregroundStyle(TelegramPalette.mutedText)
+                }
 
                 TextField("Message", text: $draft)
                     .font(.system(size: 17))
@@ -132,10 +192,11 @@ struct ChatConversationScreen: View {
                     .disabled(isSending)
 
                 Button {
+                    sendVoiceNote()
                 } label: {
                     Image(systemName: "mic.fill")
                         .font(.system(size: 18))
-                        .foregroundStyle(TelegramPalette.mutedText)
+                        .foregroundStyle(TelegramPalette.skyBlue)
                 }
             }
             .padding(.horizontal, 14)
@@ -234,6 +295,11 @@ struct ChatConversationScreen: View {
         }
 
         isSending = false
+    }
+
+    private func sendVoiceNote() {
+        aiWorkspace.sendVoiceMessage(duration: "0:04", to: thread)
+        messages = aiWorkspace.messages(for: thread)
     }
 
     @MainActor
@@ -354,6 +420,8 @@ struct ChatConversationScreen: View {
 private struct MessageBubble: View {
     let message: ConversationMessage
     let isGroupThread: Bool
+    let onReact: (String) -> Void
+    let onDelete: () -> Void
 
     var body: some View {
         HStack {
@@ -365,6 +433,41 @@ private struct MessageBubble: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
                 .background(backgroundColor, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .contextMenu {
+                    Button {
+                        onReact("👍")
+                    } label: {
+                        Label("Like 👍", systemImage: "hand.thumbsup")
+                    }
+                    Button {
+                        onReact("❤️")
+                    } label: {
+                        Label("Heart ❤️", systemImage: "heart")
+                    }
+                    Button {
+                        onReact("🔥")
+                    } label: {
+                        Label("Fire 🔥", systemImage: "flame")
+                    }
+                    Button {
+                        onReact("🎉")
+                    } label: {
+                        Label("Party 🎉", systemImage: "party.popper")
+                    }
+                    Divider()
+                    Button {
+                        if case let .text(txt) = message.payload {
+                            UIPasteboard.general.string = txt
+                        }
+                    } label: {
+                        Label("Copy Text", systemImage: "doc.on.doc")
+                    }
+                    Button(role: .destructive) {
+                        onDelete()
+                    } label: {
+                        Label("Delete Message", systemImage: "trash")
+                    }
+                }
 
             if message.side == .incoming {
                 Spacer(minLength: 40)
@@ -382,6 +485,19 @@ private struct MessageBubble: View {
             }
 
             payloadContent
+
+            if message.reactions.isEmpty == false {
+                HStack(spacing: 4) {
+                    ForEach(message.reactions, id: \.self) { reaction in
+                        Text(reaction)
+                            .font(.system(size: 13))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.white.opacity(0.18), in: Capsule())
+                    }
+                }
+                .padding(.top, 2)
+            }
         }
     }
 
@@ -408,6 +524,42 @@ private struct MessageBubble: View {
                 }
                 .foregroundStyle(foregroundColor.opacity(0.75))
             }
+        case let .voice(duration):
+            HStack(spacing: 10) {
+                Image(systemName: "play.fill")
+                    .font(.system(size: 16))
+                    .foregroundStyle(foregroundColor)
+                    .frame(width: 34, height: 34)
+                    .background(Color.white.opacity(0.15), in: Circle())
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 2) {
+                        ForEach([10, 20, 14, 26, 12, 18, 8, 22, 16, 10, 14, 20, 12, 8], id: \.self) { barHeight in
+                            RoundedRectangle(cornerRadius: 1.5)
+                                .fill(foregroundColor.opacity(0.8))
+                                .frame(width: 2.5, height: CGFloat(barHeight))
+                        }
+                    }
+                    .frame(height: 26)
+
+                    HStack(spacing: 4) {
+                        Text(duration)
+                            .font(.system(size: 11, weight: .medium))
+                        Spacer()
+                        Text(message.time)
+                            .font(.system(size: 11))
+                        if message.side == .outgoing {
+                            HStack(spacing: -3) {
+                                Image(systemName: "checkmark")
+                                Image(systemName: "checkmark")
+                            }
+                            .font(.system(size: 9, weight: .bold))
+                        }
+                    }
+                    .foregroundStyle(foregroundColor.opacity(0.75))
+                }
+            }
+            .frame(minWidth: 170)
         case let .emoji(value):
             VStack(alignment: message.side == .outgoing ? .trailing : .leading, spacing: 5) {
                 Text(value)

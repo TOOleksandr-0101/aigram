@@ -30,15 +30,30 @@ struct RootView: View {
         switch selectedTab {
         case .contacts:
             NavigationStack(path: $contactsPath) {
-                ContactsScreen { contact in
-                    contactsPath.append(.info(contact))
-                }
+                ContactsScreen(
+                    onOpenContact: { contact in
+                        contactsPath.append(.info(contact))
+                    },
+                    onOpenChat: { thread in
+                        contactsPath = []
+                        selectedTab = .chats
+                        chatsPath = [.conversation(thread)]
+                    }
+                )
                 .navigationDestination(for: ContactsRoute.self) { route in
                     switch route {
                     case let .info(contact):
-                        ContactInfoScreen(contact: contact) {
-                            contactsPath.append(.editInfo(contact))
-                        }
+                        ContactInfoScreen(
+                            contact: contact,
+                            onEdit: {
+                                contactsPath.append(.editInfo(contact))
+                            },
+                            onStartChat: { thread in
+                                contactsPath = []
+                                selectedTab = .chats
+                                chatsPath = [.conversation(thread)]
+                            }
+                        )
                     case let .editInfo(contact):
                         EditableContactInfoScreen(contact: contact)
                     }

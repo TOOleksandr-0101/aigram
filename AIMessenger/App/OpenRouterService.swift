@@ -147,6 +147,11 @@ struct OpenRouterService {
                     role: message.side == .incoming ? "assistant" : "user",
                     content: contentPrefix + "[Shared image: \(name), \(size)]"
                 )
+            case let .voice(duration):
+                return OpenRouterChatMessage(
+                    role: message.side == .incoming ? "assistant" : "user",
+                    content: contentPrefix + "[Voice message: \(duration)]"
+                )
             }
         }
 

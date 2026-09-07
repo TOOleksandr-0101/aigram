@@ -45,6 +45,9 @@ final class AIWorkspace: ObservableObject {
         didSet { defaults.set(denyProviderLogging, forKey: Keys.denyProviderLogging) }
     }
 
+    @Published var threads: [ChatThread] = ChatThread.sampleThreads
+    @Published var contacts: [ContactProfile] = ContactProfile.sampleContacts
+
     @Published private var storedConversations: [String: StoredConversationState] {
         didSet { persistStoredConversations() }
     }
@@ -62,6 +65,158 @@ final class AIWorkspace: ObservableObject {
         self.denyProviderLogging = defaults.object(forKey: Keys.denyProviderLogging) as? Bool ?? true
         self.storedConversations = Self.loadStoredConversations(from: defaults)
         seedThreadsIfNeeded(ChatThread.sampleThreads)
+    }
+
+    func togglePin(threadId: String) {
+        guard let index = threads.firstIndex(where: { $0.id == threadId }) else { return }
+        threads[index].isPinned.toggle()
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    func togglePin(for thread: ChatThread) {
+        togglePin(threadId: thread.id)
+    }
+
+    func toggleMute(threadId: String) {
+        guard let index = threads.firstIndex(where: { $0.id == threadId }) else { return }
+        threads[index].isMuted.toggle()
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    func toggleMute(for thread: ChatThread) {
+        toggleMute(threadId: thread.id)
+    }
+
+    func toggleUnread(threadId: String) {
+        guard let index = threads.firstIndex(where: { $0.id == threadId }) else { return }
+        if threads[index].badge != nil {
+            threads[index].badge = nil
+            threads[index].badgeBright = false
+        } else {
+            threads[index].badge = "1"
+            threads[index].badgeBright = true
+        }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    func markAsRead(threadId: String) {
+        guard let index = threads.firstIndex(where: { $0.id == threadId }) else { return }
+        if threads[index].badge != nil {
+            threads[index].badge = nil
+            threads[index].badgeBright = false
+        }
+    }
+
+    func deleteThread(threadId: String) {
+        threads.removeAll { $0.id == threadId }
+        storedConversations.removeValue(forKey: threadId)
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    func deleteThread(_ thread: ChatThread) {
+        deleteThread(threadId: thread.id)
+    }
+
+    func createOrGetThread(for contact: ContactProfile) -> ChatThread {
+        if let existing = threads.first(where: { $0.id == contact.id }) {
+            return existing
+        }
+
+        let newThread = ChatThread(
+            id: contact.id,
+            title: contact.displayName,
+            headline: contact.bio,
+            detail: contact.roleTitle,
+            time: "now",
+            badge: nil,
+            badgeBright: false,
+            isMuted: false,
+            isPinned: false,
+            online: contact.presence.isOnline,
+            revealSide: .none,
+            deliveryState: .none,
+            groupedBackground: false,
+            avatar: contact.avatar,
+            kind: .direct
+        )
+        threads.insert(newThread, at: 0)
+        ensureConversationExists(for: newThread)
+        return newThread
+    }
+
+    func addReaction(emoji: String, to messageId: String, in thread: ChatThread) {
+        var msgs = messages(for: thread)
+        guard let idx = msgs.firstIndex(where: { $0.id == messageId }) else { return }
+        if let reactionIdx = msgs[idx].reactions.firstIndex(of: emoji) {
+            msgs[idx].reactions.remove(at: reactionIdx)
+        } else {
+            msgs[idx].reactions.append(emoji)
+        }
+        replaceMessages(msgs, for: thread)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    func deleteMessage(messageId: String, in thread: ChatThread) {
+        var msgs = messages(for: thread)
+        msgs.removeAll { $0.id == messageId }
+        replaceMessages(msgs, for: thread)
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    func sendVoiceMessage(duration: String, to thread: ChatThread) {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        let msg = ConversationMessage(
+            id: UUID().uuidString,
+            side: .outgoing,
+            payload: .voice(duration: duration),
+            time: formatter.string(from: Date())
+        )
+        appendMessage(msg, to: thread)
+    }
+
+    func sendAttachment(name: String, size: String, to thread: ChatThread) {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        let msg = ConversationMessage(
+            id: UUID().uuidString,
+            side: .outgoing,
+            payload: .photo(name: name, size: size),
+            time: formatter.string(from: Date())
+        )
+        appendMessage(msg, to: thread)
+    }
+
+    func addNewAgent(name: String, username: String, role: String, bio: String, avatar: ChatAvatarKind) {
+        let cleanId = username.lowercased().replacingOccurrences(of: "@", with: "").replacingOccurrences(of: " ", with: "-")
+        let contact = ContactProfile(
+            id: cleanId.isEmpty ? UUID().uuidString : cleanId,
+            displayName: name,
+            username: username.hasPrefix("@") ? username : "@\(username)",
+            roleTitle: role,
+            bio: bio,
+            presence: .online,
+            avatar: avatar
+        )
+        contacts.insert(contact, at: 0)
+        _ = createOrGetThread(for: contact)
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    func updateContact(contactId: String, newName: String, newBio: String) {
+        if let idx = contacts.firstIndex(where: { $0.id == contactId }) {
+            contacts[idx].displayName = newName
+            contacts[idx].bio = newBio
+        }
+        if let tIdx = threads.firstIndex(where: { $0.id == contactId }) {
+            threads[tIdx].title = newName
+            threads[tIdx].headline = newBio
+        }
+    }
+
+    func removeContact(contactId: String) {
+        contacts.removeAll { $0.id == contactId }
+        deleteThread(threadId: contactId)
     }
 
     var trimmedAPIKey: String {
@@ -133,9 +288,10 @@ final class AIWorkspace: ObservableObject {
         replaceMessages(current, for: thread)
     }
 
-    func orderedSummaries(for baseThreads: [ChatThread]) -> [ChatThreadSummary] {
-        seedThreadsIfNeeded(baseThreads)
-        let indexedThreads = Array(baseThreads.enumerated())
+    func orderedSummaries(for baseThreads: [ChatThread]? = nil) -> [ChatThreadSummary] {
+        let active = baseThreads ?? self.threads
+        seedThreadsIfNeeded(active)
+        let indexedThreads = Array(active.enumerated())
 
         return indexedThreads
             .map { index, thread in
@@ -226,6 +382,8 @@ final class AIWorkspace: ObservableObject {
             baseText = value
         case let .photo(name, _):
             baseText = "Shared image: \(name)"
+        case let .voice(duration):
+            baseText = "Voice message (\(duration))"
         }
 
         if let authorName = message.authorName, message.side == .incoming {

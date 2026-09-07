@@ -4,8 +4,7 @@ struct ChatsScreen: View {
     let onOpenThread: (ChatThread) -> Void
 
     @EnvironmentObject private var aiWorkspace: AIWorkspace
-    private let threads = ChatThread.sampleThreads
-    @State private var showModalPreview = false
+    @State private var showNewChatSheet = false
     @State private var searchText = ""
 
     var body: some View {
@@ -14,15 +13,17 @@ struct ChatsScreen: View {
             chatsList
         }
         .background(TelegramPalette.backgroundPrimary)
-        .sheet(isPresented: $showModalPreview) {
-            ChatModalPreviewScreen(threads: threads)
+        .sheet(isPresented: $showNewChatSheet) {
+            NewChatSheet { selectedThread in
+                onOpenThread(selectedThread)
+            }
         }
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
     }
 
     private var filteredThreads: [ChatThreadSummary] {
-        let summaries = aiWorkspace.orderedSummaries(for: threads)
+        let summaries = aiWorkspace.orderedSummaries()
         guard searchText.isEmpty == false else { return summaries }
 
         return summaries.filter { summary in
@@ -33,9 +34,11 @@ struct ChatsScreen: View {
     private var header: some View {
         VStack(spacing: 12) {
             HStack {
-                Button("Edit") { }
-                    .font(.system(size: 17))
-                    .foregroundStyle(.white)
+                Button("Edit") {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                }
+                .font(.system(size: 17))
+                .foregroundStyle(.white)
 
                 Spacer()
 
@@ -46,7 +49,7 @@ struct ChatsScreen: View {
                 Spacer()
 
                 Button {
-                    showModalPreview = true
+                    showNewChatSheet = true
                 } label: {
                     Image(systemName: "square.and.pencil")
                         .font(.system(size: 18, weight: .medium))
@@ -90,6 +93,7 @@ struct ChatsScreen: View {
         List {
             ForEach(Array(filteredThreads.enumerated()), id: \.element.id) { index, summary in
                 Button {
+                    aiWorkspace.markAsRead(threadId: summary.thread.id)
                     onOpenThread(summary.thread)
                 } label: {
                     ChatRow(summary: summary, showSeparator: index < filteredThreads.count - 1)
@@ -99,31 +103,45 @@ struct ChatsScreen: View {
                 .listRowSeparator(.hidden)
                 .listRowBackground(summary.thread.groupedBackground ? TelegramPalette.backgroundElevated : TelegramPalette.backgroundPrimary)
                 .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                    Button { } label: {
-                        swipeLabel(title: "Pin", systemImage: "pin.fill")
+                    Button {
+                        aiWorkspace.togglePin(threadId: summary.thread.id)
+                    } label: {
+                        swipeLabel(
+                            title: summary.thread.isPinned ? "Unpin" : "Pin",
+                            systemImage: summary.thread.isPinned ? "pin.slash.fill" : "pin.fill"
+                        )
                     }
                     .tint(TelegramPalette.successGreen)
 
-                    Button { } label: {
-                        swipeLabel(title: "Unread", systemImage: "bubble.left.fill")
+                    Button {
+                        aiWorkspace.toggleUnread(threadId: summary.thread.id)
+                    } label: {
+                        swipeLabel(
+                            title: summary.thread.badge != nil ? "Read" : "Unread",
+                            systemImage: summary.thread.badge != nil ? "envelope.open.fill" : "bubble.left.fill"
+                        )
                     }
                     .tint(TelegramPalette.unreadGray)
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    Button(role: .destructive) { } label: {
+                    Button(role: .destructive) {
+                        withAnimation {
+                            aiWorkspace.deleteThread(threadId: summary.thread.id)
+                        }
+                    } label: {
                         swipeLabel(title: "Delete", systemImage: "trash.fill")
                     }
                     .tint(TelegramPalette.destructiveRed)
 
-                    Button { } label: {
-                        swipeLabel(title: "Mute", systemImage: "bell.slash.fill")
+                    Button {
+                        aiWorkspace.toggleMute(threadId: summary.thread.id)
+                    } label: {
+                        swipeLabel(
+                            title: summary.thread.isMuted ? "Unmute" : "Mute",
+                            systemImage: summary.thread.isMuted ? "bell.fill" : "bell.slash.fill"
+                        )
                     }
                     .tint(TelegramPalette.warningOrange)
-
-                    Button { } label: {
-                        swipeLabel(title: "Archive", systemImage: "archivebox.fill")
-                    }
-                    .tint(TelegramPalette.unreadGray)
                 }
             }
 
@@ -404,5 +422,83 @@ struct ChatsScreen_Previews: PreviewProvider {
     static var previews: some View {
         ChatsScreen { _ in }
             .environmentObject(AIWorkspace())
+    }
+}
+
+// MARK: - New Chat Agent Selection Sheet
+struct NewChatSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var aiWorkspace: AIWorkspace
+    let onSelectThread: (ChatThread) -> Void
+
+    @State private var searchContactText = ""
+
+    var filteredContacts: [ContactProfile] {
+        if searchContactText.isEmpty {
+            return aiWorkspace.contacts
+        }
+        return aiWorkspace.contacts.filter {
+            $0.displayName.localizedCaseInsensitiveContains(searchContactText) ||
+            $0.roleTitle.localizedCaseInsensitiveContains(searchContactText) ||
+            $0.username.localizedCaseInsensitiveContains(searchContactText)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(filteredContacts) { contact in
+                        Button {
+                            let thread = aiWorkspace.createOrGetThread(for: contact)
+                            dismiss()
+                            onSelectThread(thread)
+                        } label: {
+                            HStack(spacing: 12) {
+                                AvatarView(kind: contact.avatar, showsOnlineDot: contact.presence.isOnline)
+                                    .frame(width: 44, height: 44)
+
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(contact.displayName)
+                                        .font(.system(size: 17, weight: .semibold))
+                                        .foregroundStyle(.white)
+
+                                    Text(contact.roleTitle)
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(TelegramPalette.mutedText)
+                                        .lineLimit(1)
+                                }
+
+                                Spacer()
+
+                                Text(contact.username)
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(TelegramPalette.accentBlue)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                        .listRowBackground(TelegramPalette.backgroundElevated)
+                    }
+                } header: {
+                    Text("AI Agents & Contacts")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(TelegramPalette.mutedText)
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(TelegramPalette.backgroundPrimary.ignoresSafeArea())
+            .searchable(text: $searchContactText, prompt: "Search agents or roles")
+            .navigationTitle("New Message")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .foregroundStyle(TelegramPalette.accentBlue)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 }

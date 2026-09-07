@@ -70,20 +70,20 @@ enum ChatAvatarKind: String, Hashable, Codable {
 
 struct ChatThread: Identifiable, Hashable {
     let id: String
-    let title: String
-    let headline: String
-    let detail: String?
-    let time: String
-    let badge: String?
-    let badgeBright: Bool
-    let isMuted: Bool
-    let isPinned: Bool
-    let online: Bool
-    let revealSide: SwipeRevealSide
-    let deliveryState: DeliveryState
-    let groupedBackground: Bool
-    let avatar: ChatAvatarKind
-    let kind: ChatThreadKind
+    var title: String
+    var headline: String
+    var detail: String?
+    var time: String
+    var badge: String?
+    var badgeBright: Bool
+    var isMuted: Bool
+    var isPinned: Bool
+    var online: Bool
+    var revealSide: SwipeRevealSide
+    var deliveryState: DeliveryState
+    var groupedBackground: Bool
+    var avatar: ChatAvatarKind
+    var kind: ChatThreadKind
 }
 
 struct ChatThreadSummary: Identifiable, Hashable {
@@ -124,6 +124,7 @@ struct ConversationMessage: Identifiable, Hashable, Codable {
         case text(String)
         case emoji(String)
         case photo(name: String, size: String)
+        case voice(duration: String)
     }
 
     let id: String
@@ -132,6 +133,7 @@ struct ConversationMessage: Identifiable, Hashable, Codable {
     let time: String
     let authorName: String?
     let authorAvatar: ChatAvatarKind?
+    var reactions: [String]
 
     init(
         id: String,
@@ -139,7 +141,8 @@ struct ConversationMessage: Identifiable, Hashable, Codable {
         payload: Payload,
         time: String,
         authorName: String? = nil,
-        authorAvatar: ChatAvatarKind? = nil
+        authorAvatar: ChatAvatarKind? = nil,
+        reactions: [String] = []
     ) {
         self.id = id
         self.side = side
@@ -147,6 +150,7 @@ struct ConversationMessage: Identifiable, Hashable, Codable {
         self.time = time
         self.authorName = authorName
         self.authorAvatar = authorAvatar
+        self.reactions = reactions
     }
 }
 
@@ -174,12 +178,12 @@ enum PresenceState: Hashable {
 
 struct ContactProfile: Identifiable, Hashable {
     let id: String
-    let displayName: String
-    let username: String
-    let roleTitle: String
-    let bio: String
-    let presence: PresenceState
-    let avatar: ChatAvatarKind
+    var displayName: String
+    var username: String
+    var roleTitle: String
+    var bio: String
+    var presence: PresenceState
+    var avatar: ChatAvatarKind
 }
 
 enum CallDirection: Hashable {
