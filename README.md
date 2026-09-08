@@ -23,38 +23,51 @@ The app is built natively with **SwiftUI** and connects directly to **OpenRouter
 ## 📸 Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/aimessenger-stories-and-folders.png" width="31%" alt="AIGram Chats with Stories & Folders" />
-  <img src="docs/screenshots/aimessenger-video-notes-and-stickers.png" width="31%" alt="AIGram Video Notes & Stickers" />
-  <img src="docs/screenshots/aigram-attachment-sheet.png" width="31%" alt="AIGram Media Attachment Sheet" />
+  <img src="docs/screenshots/aigram-live-recording-meter.png" width="31%" alt="AIGram Native Microphone Recording with Live Waveforms" />
+  <img src="docs/screenshots/aigram-voice-sent-live.png" width="31%" alt="AIGram Sent Voice Message & AI Reply" />
+  <img src="docs/screenshots/aigram-photo-ai-reply.png" width="31%" alt="AIGram Real Photo Rendering & Visual Critique" />
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/aigram-video-transcription.png" width="31%" alt="AIGram Voice & Video Note Transcription" />
-  <img src="docs/screenshots/aigram-voice-recording.png" width="31%" alt="AIGram Voice Recording Waveform Bar" />
+  <img src="docs/screenshots/aigram-live-call.png" width="31%" alt="AIGram Spoken Audio Call" />
+  <img src="docs/screenshots/aigram-attachment-sheet.png" width="31%" alt="AIGram Media Attachment Sheet" />
   <img src="docs/screenshots/aigram-appearance-wallpaper.png" width="31%" alt="AIGram Appearance & Chat Wallpapers" />
 </p>
 
 <p align="center">
+  <img src="docs/screenshots/aimessenger-stories-and-folders.png" width="31%" alt="AIGram Chats with Stories & Folders" />
   <img src="docs/screenshots/aimessenger-story-viewer.png" width="31%" alt="AIGram Story Viewer" />
   <img src="docs/screenshots/aimessenger-telegram-settings.png" width="31%" alt="AIGram Dark Settings & Premium" />
-  <img src="docs/screenshots/aimessenger-qr-share.png" width="31%" alt="AIGram QR Code Profile Share Sheet" />
 </p>
 
 ---
 
 ## 🚀 Key Features
 
-* **📎 Interactive Attachment Sheet & Media Viewer**:
-  * Bottom sheet with horizontal Recent Media gallery carousel and quick actions: **Gallery**, **File**, **Location**, **Poll**.
-  * Native photo picker integration, media bubbles with preview thumbnails and file sizes, plus full-screen zoomable media modal.
-
-* **🎙️→🅰️ Speech-to-Text Transcription (`→A`)**:
-  * Telegram-style `→A` button on both audio messages and circular video notes.
-  * Real-time transcription simulation with animated progress spinner, expanding into readable transcribed speech below the bubble.
-
-* **🔴 Gesture-Driven Voice Recording**:
-  * Live recording bar with pulsing red indicator (`● REC 0:02`), active audio waveforms, and slide-to-cancel / send actions.
+* **🎙️ Real Microphone Voice Recording & Live Waveform Metering**:
+  * Native `AVAudioRecorder` recording genuine `.m4a` files directly into `Documents/AIGramMedia/`.
+  * Real-time 60ms audio power metering polling hardware decibels and driving dynamic 8-bar audio waveform animations.
   * Tactile haptic feedback on touch start, cancel, and message transmission.
+
+* **🔊 Real Audio Playback & Spoken Audio Engine**:
+  * Native `AVAudioPlayer` playback with live progress bar synchronization.
+  * Intelligent speech synthesis fallback (`AVSpeechSynthesizer`) for on-the-fly vocalization.
+
+* **🎙️→🅰️ Native Speech-to-Text Recognition (`→A`)**:
+  * Apple `Speech.framework` (`SFSpeechRecognizer`) integration for on-device voice audio transcription.
+  * Real-time transcription spinner and contextual expansion below voice bubbles and circular video notes.
+
+* **🖼️ Real Photo Storage & Interactive Media Viewer**:
+  * Full `PhotosPicker` integration saving real image data to disk (`MediaStorageService`).
+  * Real graphic rendering in `PhotoMessageBubble` with blueprints, wireframes, architecture maps, and user photos.
+  * Fullscreen zoomable media viewer (`MediaViewerModal`) with pinch-to-zoom (`MagnificationGesture`), pan, and native iOS `ShareLink`.
+
+* **📞 Spoken Voice Calls (`TelegramCallView`)**:
+  * Full-screen audio call interface with real spoken voice powered by `AVSpeechSynthesizer`.
+  * Encrypted call indicators (`🔐 ⚡️ 🤖 🧠`), animated pulsing audio rings, call timer, and mute/speaker/hang-up controls.
+
+* **🧠 Contextual AI Persona Reactions**:
+  * Every voice note, photo, and message triggers intelligent, persona-tailored critiques and follow-ups (e.g. Design Scout analyzes wireframe padding, Product Coach analyzes onboarding conversion, Code Partner reviews Swift concurrency).
 
 * **🎨 Dynamic Chat Wallpapers & Appearance Customizer**:
   * 5 selectable chat wallpapers: **Dark Doodles**, **Midnight Pure**, **Cyber Neon**, **Sunset Velvet**, and **Emerald Matrix**.

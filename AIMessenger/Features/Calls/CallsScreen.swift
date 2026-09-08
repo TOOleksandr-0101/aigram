@@ -31,6 +31,13 @@ struct CallsScreen: View {
                 greetingText: "Hey! Connected with \(call.name). Ready to discuss your questions."
             )
         }
+        .onAppear {
+            if ProcessInfo.processInfo.arguments.contains("-testCall") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    activeCallRecord = calls.first
+                }
+            }
+        }
     }
 
     private var topBar: some View {
@@ -170,9 +177,14 @@ struct TelegramCallView: View {
         }
         .task {
             try? await Task.sleep(nanoseconds: 1_600_000_000)
+            let spokenGreeting = greetingText ?? "Hey! Connected to \(contactName). How can I help today?"
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                 isConnected = true
-                subtitleText = greetingText ?? "Hey! Connected to \(contactName). How can I help today?"
+                subtitleText = spokenGreeting
+            }
+
+            if !isMuted {
+                VoiceCallSpeechSynthesizer.shared.speak(text: spokenGreeting)
             }
 
             while true {
@@ -182,11 +194,15 @@ struct TelegramCallView: View {
                 }
             }
         }
+        .onDisappear {
+            VoiceCallSpeechSynthesizer.shared.stop()
+        }
     }
 
     private var topBar: some View {
         HStack {
             Button {
+                VoiceCallSpeechSynthesizer.shared.stop()
                 dismiss()
             } label: {
                 Image(systemName: "chevron.down")
@@ -290,6 +306,11 @@ struct TelegramCallView: View {
                     isActive: isMuted
                 ) {
                     isMuted.toggle()
+                    if isMuted {
+                        VoiceCallSpeechSynthesizer.shared.stop()
+                    } else if isConnected && !subtitleText.isEmpty {
+                        VoiceCallSpeechSynthesizer.shared.speak(text: subtitleText)
+                    }
                 }
 
                 callControlButton(
@@ -310,6 +331,7 @@ struct TelegramCallView: View {
             }
 
             Button {
+                VoiceCallSpeechSynthesizer.shared.stop()
                 dismiss()
             } label: {
                 Image(systemName: "phone.down.fill")

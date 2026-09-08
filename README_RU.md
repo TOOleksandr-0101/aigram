@@ -23,38 +23,51 @@
 ## 📸 Скриншоты
 
 <p align="center">
-  <img src="docs/screenshots/aimessenger-stories-and-folders.png" width="31%" alt="AIGram Чаты с Историями и Папками" />
-  <img src="docs/screenshots/aimessenger-video-notes-and-stickers.png" width="31%" alt="AIGram Кружочки и Стикеры" />
-  <img src="docs/screenshots/aigram-attachment-sheet.png" width="31%" alt="AIGram Меню вложений медиа" />
+  <img src="docs/screenshots/aigram-live-recording-meter.png" width="31%" alt="AIGram Запись с микрофона с живым 8-полосным спектром" />
+  <img src="docs/screenshots/aigram-voice-sent-live.png" width="31%" alt="AIGram Отправленное голосовое сообщение и ответ ИИ" />
+  <img src="docs/screenshots/aigram-photo-ai-reply.png" width="31%" alt="AIGram Настоящие изображения и разбор макета" />
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/aigram-video-transcription.png" width="31%" alt="AIGram Расшифровка голосовых и кружочков" />
-  <img src="docs/screenshots/aigram-voice-recording.png" width="31%" alt="AIGram Запись голосового с аудиоволной" />
+  <img src="docs/screenshots/aigram-live-call.png" width="31%" alt="AIGram Голосовой звонок с живой речью" />
+  <img src="docs/screenshots/aigram-attachment-sheet.png" width="31%" alt="AIGram Меню вложений медиа" />
   <img src="docs/screenshots/aigram-appearance-wallpaper.png" width="31%" alt="AIGram Обои чата и оформление" />
 </p>
 
 <p align="center">
+  <img src="docs/screenshots/aimessenger-stories-and-folders.png" width="31%" alt="AIGram Чаты с Историями и Папками" />
   <img src="docs/screenshots/aimessenger-story-viewer.png" width="31%" alt="AIGram Просмотр историй" />
   <img src="docs/screenshots/aimessenger-telegram-settings.png" width="31%" alt="AIGram Темные настройки и Premium" />
-  <img src="docs/screenshots/aimessenger-qr-share.png" width="31%" alt="AIGram QR-код профиля" />
 </p>
 
 ---
 
 ## 🚀 Ключевые возможности
 
-* **📎 Интерактивное меню вложений и просмотр фото**:
-  * Нижняя шторка «Share Content» с каруселью недавних медиа и быстрыми действиями: **Галерея**, **Файл**, **Геопозиция**, **Опрос**.
-  * Интеграция с `PhotosPicker`, отображение фото-бабблов с превью и размером файла, а также полноэкранный модальный просмотрщик с зумом.
+* **🎙️ Настоящая запись звука с микрофона и живой спектрометр**:
+  * Нативный `AVAudioRecorder` записывает реальные `.m4a` аудиофайлы в папку `Documents/AIGramMedia/`.
+  * Спектрометр с частотой 60мс опрашивает аппаратные децибелы микрофона и динамически изменяет высоту 8 полос аудиоволны в реальном времени.
+  * Нативный запрос системных разрешений iOS (`NSMicrophoneUsageDescription`).
 
-* **🎙️→🅰️ Расшифровка аудио и видео в текст (`→A`)**:
-  * Фирменная кнопка `→A` на голосовых сообщениях и кружочках.
-  * Индикатор распознавания с вращающимся спиннером и плавное разворачивание распознанной речи прямо под бабблом.
+* **🔊 Нативное воспроизведение аудио и синтез речи**:
+  * Воспроизведение через динамик устройства с помощью `AVAudioPlayer` с плавной синхронизацией таймкода и прогресса.
+  * Интеллектуальный синтезатор речи (`AVSpeechSynthesizer`) для моментального озвучивания входящих ответов и голосовых реплик.
 
-* **🔴 Запись голосовых сообщений с аудиоволной**:
-  * Панель записи с пульсирующей красной точкой (`● REC 0:02`), живой анимацией аудиоволн и возможностью отмены смахиванием.
-  * Тактильный отклик Taptic Engine при старте записи, отмене и отправке.
+* **🎙️→🅰️ Аппаратное распознавание речи в текст (`→A`)**:
+  * Интеграция с нативным фреймворком `Speech.framework` (`SFSpeechRecognizer`) для расшифровки локального аудиофайла в текст прямо на устройстве.
+  * Анимированный спиннер обработки и плавное появление расшифрованного текста под голосовым или кружочком.
+
+* **🖼️ Настоящее хранилище медиа и интерактивный просмотр фото**:
+  * Загрузка фотографий через системный `PhotosPicker` и сохранение на диск (`MediaStorageService`).
+  * Отображение настоящих графических изображений (схемы архитектуры, вайрфреймы экранов, макеты и фото пользователя).
+  * Полноэкранный просмотрщик (`MediaViewerModal`) с поддержкой жестов зума (`MagnificationGesture`), панорамирования и системного `ShareLink`.
+
+* **📞 Голосовые аудиозвонки с живой речью (`TelegramCallView`)**:
+  * Полноэкранный интерфейс звонка с живой речью собеседника на базе `AVSpeechSynthesizer`.
+  * Индикаторы шифрования (`🔐 ⚡️ 🤖 🧠`), пульсирующие круги звуковой волны, таймер звонка, кнопки Mute, Speaker и завершения вызова.
+
+* **🧠 Контекстные ответы ИИ-персон на медиа**:
+  * Отправка фото или голосового сообщения вызывает осмысленный разбор от персоны (например, Design Scout комментирует отступы и контраст макета, Product Coach оценивает конверсию воронки, а Code Partner проверяет безопасность типов и многопоточность).
 
 * **🎨 Динамические обои чата и настройка оформления**:
   * 5 уникальных тем фона чатов: **Dark Doodles** (фирменные дудлы), **Midnight Pure** (глубокий черный), **Cyber Neon**, **Sunset Velvet** и **Emerald Matrix**.

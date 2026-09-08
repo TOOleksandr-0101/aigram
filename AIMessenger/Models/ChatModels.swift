@@ -159,6 +159,7 @@ struct ConversationMessage: Identifiable, Hashable, Codable {
     var transcription: String?
     var isTranscribing: Bool
     var isTranscribed: Bool
+    var localFileName: String?
 
     init(
         id: String,
@@ -170,7 +171,8 @@ struct ConversationMessage: Identifiable, Hashable, Codable {
         reactions: [String] = [],
         transcription: String? = nil,
         isTranscribing: Bool = false,
-        isTranscribed: Bool = false
+        isTranscribed: Bool = false,
+        localFileName: String? = nil
     ) {
         self.id = id
         self.side = side
@@ -182,6 +184,7 @@ struct ConversationMessage: Identifiable, Hashable, Codable {
         self.transcription = transcription
         self.isTranscribing = isTranscribing
         self.isTranscribed = isTranscribed
+        self.localFileName = localFileName
     }
 
     var isVoice: Bool {
@@ -196,6 +199,22 @@ struct ConversationMessage: Identifiable, Hashable, Codable {
 
     var isTranscribable: Bool {
         isVoice || isVideoNote
+    }
+
+    var audioFileName: String? {
+        if let local = localFileName { return local }
+        if case .voice = payload {
+            return "voice_\(id).m4a"
+        }
+        return nil
+    }
+
+    var imageFileName: String? {
+        if let local = localFileName { return local }
+        if case let .photo(name, _) = payload {
+            return name
+        }
+        return nil
     }
 }
 

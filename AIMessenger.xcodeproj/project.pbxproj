@@ -24,6 +24,9 @@
 		B1000001000000000000000F /* AIWorkspace.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000010 /* AIWorkspace.swift */; };
 		B10000010000000000000010 /* OpenRouterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000011 /* OpenRouterService.swift */; };
 		B10000010000000000000011 /* AIGatewayScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000012 /* AIGatewayScreen.swift */; };
+		B10000010000000000000013 /* MediaStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000013 /* MediaStorageService.swift */; };
+		B10000010000000000000014 /* AudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000014 /* AudioEngine.swift */; };
+		B10000010000000000000015 /* SpeechTranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000015 /* SpeechTranscriptionService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -45,6 +48,9 @@
 		B20000010000000000000010 /* AIWorkspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIWorkspace.swift; sourceTree = "<group>"; };
 		B20000010000000000000011 /* OpenRouterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterService.swift; sourceTree = "<group>"; };
 		B20000010000000000000012 /* AIGatewayScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIGatewayScreen.swift; sourceTree = "<group>"; };
+		B20000010000000000000013 /* MediaStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaStorageService.swift; sourceTree = "<group>"; };
+		B20000010000000000000014 /* AudioEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioEngine.swift; sourceTree = "<group>"; };
+		B20000010000000000000015 /* SpeechTranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechTranscriptionService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -93,6 +99,9 @@
 				B20000010000000000000011 /* OpenRouterService.swift */,
 				B20000010000000000000002 /* RootView.swift */,
 				B20000010000000000000003 /* TelegramTheme.swift */,
+				B20000010000000000000013 /* MediaStorageService.swift */,
+				B20000010000000000000014 /* AudioEngine.swift */,
+				B20000010000000000000015 /* SpeechTranscriptionService.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -266,6 +275,9 @@
 				B10000010000000000000011 /* AIGatewayScreen.swift in Sources */,
 				B1000001000000000000000D /* SettingsHubScreen.swift in Sources */,
 				B1000001000000000000000E /* SettingsDetailScreens.swift in Sources */,
+				B10000010000000000000013 /* MediaStorageService.swift in Sources */,
+				B10000010000000000000014 /* AudioEngine.swift in Sources */,
+				B10000010000000000000015 /* SpeechTranscriptionService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -284,6 +296,10 @@
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "AIGram uses the microphone to record voice messages and video notes.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "AIGram uses speech recognition to transcribe voice messages into text.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "AIGram lets you pick and send photos from your photo library.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "AIGram uses the camera to record video notes.";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -310,6 +326,10 @@
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "AIGram uses the microphone to record voice messages and video notes.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "AIGram uses speech recognition to transcribe voice messages into text.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "AIGram lets you pick and send photos from your photo library.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "AIGram uses the camera to record video notes.";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

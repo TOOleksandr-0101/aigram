@@ -145,6 +145,8 @@ struct RootView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                 settingsPath = [.appearance]
             }
+        } else if args.contains("-openCalls") {
+            selectedTab = .calls
         }
     }
 }

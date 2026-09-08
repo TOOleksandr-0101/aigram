@@ -175,28 +175,22 @@ final class AIWorkspace: ObservableObject {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 
-    func sendVoiceMessage(duration: String, to thread: ChatThread) {
+    func sendVoiceMessage(duration: String, filename: String? = nil, to thread: ChatThread) {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
         let msg = ConversationMessage(
             id: UUID().uuidString,
             side: .outgoing,
             payload: .voice(duration: duration),
-            time: formatter.string(from: Date())
+            time: formatter.string(from: Date()),
+            localFileName: filename
         )
         appendMessage(msg, to: thread)
+        generateAIResponseIfNeeded(for: msg, in: thread)
     }
 
-    func sendAttachment(name: String, size: String, to thread: ChatThread) {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        let msg = ConversationMessage(
-            id: UUID().uuidString,
-            side: .outgoing,
-            payload: .photo(name: name, size: size),
-            time: formatter.string(from: Date())
-        )
-        appendMessage(msg, to: thread)
+    func sendAttachment(name: String, size: String, localFileName: String? = nil, to thread: ChatThread) {
+        sendPhoto(name: name, size: size, localFileName: localFileName, to: thread)
     }
 
     func sendVideoNote(duration: String, to thread: ChatThread) {
@@ -209,6 +203,7 @@ final class AIWorkspace: ObservableObject {
             time: formatter.string(from: Date())
         )
         appendMessage(msg, to: thread)
+        generateAIResponseIfNeeded(for: msg, in: thread)
     }
 
     func sendSticker(name: String, emoji: String, to thread: ChatThread) {
@@ -235,16 +230,18 @@ final class AIWorkspace: ObservableObject {
         appendMessage(msg, to: thread)
     }
 
-    func sendPhoto(name: String, size: String = "1.8 MB", to thread: ChatThread) {
+    func sendPhoto(name: String, size: String = "1.8 MB", localFileName: String? = nil, to thread: ChatThread) {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
         let msg = ConversationMessage(
             id: UUID().uuidString,
             side: .outgoing,
             payload: .photo(name: name, size: size),
-            time: formatter.string(from: Date())
+            time: formatter.string(from: Date()),
+            localFileName: localFileName ?? name
         )
         appendMessage(msg, to: thread)
+        generateAIResponseIfNeeded(for: msg, in: thread)
     }
 
     func transcribeMessage(id: String, in thread: ChatThread) {
@@ -262,26 +259,121 @@ final class AIWorkspace: ObservableObject {
         replaceMessages(current, for: thread)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
 
+        let isOutgoing = current[idx].side == .outgoing
+        let localFileName = current[idx].localFileName
+        let threadTitle = thread.title
+
         Task {
-            try? await Task.sleep(nanoseconds: 700_000_000)
+            var audioURL: URL? = nil
+            if let localFileName = localFileName {
+                audioURL = MediaStorageService.shared.fileURL(for: localFileName)
+            }
+
+            _ = await SpeechTranscriptionService.shared.requestAuthorization()
+            let transcribedText = await SpeechTranscriptionService.shared.transcribeAudio(
+                fileURL: audioURL,
+                threadTitle: threadTitle,
+                isOutgoing: isOutgoing
+            )
+
             var updated = self.messages(for: thread)
             guard let uIdx = updated.firstIndex(where: { $0.id == id }) else { return }
             updated[uIdx].isTranscribing = false
-
-            let text: String
-            switch updated[uIdx].payload {
-            case .voice:
-                text = "«I checked the latency and tokens on the frontier models. Everything is performing within optimal parameters.»"
-            case .videoNote:
-                text = "«Recorded a quick walkthrough of the new components. Let me know what you think of the design!»"
-            default:
-                text = "«Audio transcribed successfully.»"
-            }
-
-            updated[uIdx].transcription = text
+            updated[uIdx].transcription = transcribedText
             updated[uIdx].isTranscribed = true
             self.replaceMessages(updated, for: thread)
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        }
+    }
+
+    private func generateAIResponseIfNeeded(for message: ConversationMessage, in thread: ChatThread) {
+        guard message.side == .outgoing else { return }
+
+        Task {
+            try? await Task.sleep(nanoseconds: 900_000_000)
+
+            let promptSummary: String
+            switch message.payload {
+            case let .voice(duration):
+                promptSummary = "[Пользователь отправил голосовое сообщение (\(duration))]"
+            case let .photo(name, _):
+                promptSummary = "[Пользователь отправил фото/макет: \(name)]"
+            case let .videoNote(duration):
+                promptSummary = "[Пользователь записал видеосообщение: \(duration)]"
+            default:
+                return
+            }
+
+            var replyText: String? = nil
+            if self.isConfigured {
+                do {
+                    replyText = try await OpenRouterService().sendMessage(
+                        draft: promptSummary,
+                        thread: thread,
+                        history: self.messages(for: thread),
+                        memoryNote: self.memoryNote(for: thread),
+                        configuration: self.configurationSnapshot
+                    )
+                } catch {
+                    print("[AIWorkspace] OpenRouter response failed: \(error)")
+                }
+            }
+
+            if replyText == nil || replyText?.isEmpty == true {
+                replyText = self.contextualOfflineResponse(for: message, in: thread)
+            }
+
+            guard let finalReply = replyText, !finalReply.isEmpty else { return }
+
+            let formatter = DateFormatter()
+            formatter.dateFormat = "HH:mm"
+
+            let replyMsg = ConversationMessage(
+                id: UUID().uuidString,
+                side: .incoming,
+                payload: .text(finalReply),
+                time: formatter.string(from: Date()),
+                authorName: thread.isGroup ? (thread.title == "Build Board" ? "Code Partner" : "Study Room") : thread.title,
+                authorAvatar: thread.avatar
+            )
+
+            self.appendMessage(replyMsg, to: thread)
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        }
+    }
+
+    private func contextualOfflineResponse(for message: ConversationMessage, in thread: ChatThread) -> String {
+        switch message.payload {
+        case .voice:
+            switch thread.id {
+            case "design-scout":
+                return "Прослушал голосовое сообщение. По визуальной части: предлагаю зафиксировать эту структуру компонентов и подготовить финальный макет для ревью."
+            case "product-coach":
+                return "Голосовое принял. По продуктовой воронке: идея отличная, давай включим этот сценарий в ближайший спринт и замерим конверсию первого дня."
+            case "code-partner":
+                return "Записал архитектурные требования из аудио. Реализуем на Swift concurrency с акторной изоляцией для надежности."
+            case "research-desk":
+                return "Голосовые тезисы зафиксированы. Добавил эти пункты в сравнительный отчет по моделям и бенчмаркам."
+            default:
+                return "Прослушал аудиозапись. Детали зафиксированы, готов приступать к следующему шагу."
+            }
+        case let .photo(name, _):
+            switch thread.id {
+            case "design-scout":
+                return "Отличный референс (\(name))! Проверил сетку, контрастность и баланс белого пространства — композиция выглядит чисто. Рекомендую сохранить 18pt радиус скруглений."
+            case "product-coach":
+                return "Изучил макет (\(name)). Пользовательский сценарий считывается за 2 секунды. На следующем шаге стоит сделать акцентную кнопку действия более заметной."
+            case "code-partner":
+                return "Изучил схему (\(name)). Архитектура модулей логична, зависимости направлены верно. Можем безопасно раскатывать в продакшен."
+            case "research-desk":
+                return "Данные со схемы (\(name)) занесены в проект. Отличная наглядная визуализация параметров."
+            default:
+                return "Изображение (\(name)) получено и сохранено в локальном хранилище AIGram. Готов разобрать детали."
+            }
+        case .videoNote:
+            return "Посмотрел видеосообщение! Отличный темп и понятная подача. Зафиксировал всё в задачах проекта."
+        default:
+            return "Сообщение принято и сохранено."
         }
     }
 

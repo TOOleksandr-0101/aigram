@@ -25,6 +25,7 @@ struct ChatConversationScreen: View {
     @State private var recordDotBlink = false
     @State private var recordingTimer: Task<Void, Never>?
     @State private var errorText: String?
+    @ObservedObject private var audioRecorder = AudioRecordingManager.shared
     private let openRouterService = OpenRouterService()
 
     enum InputMediaMode {
@@ -130,11 +131,25 @@ struct ChatConversationScreen: View {
                     startRecordingVoice()
                 }
             }
+            if ProcessInfo.processInfo.arguments.contains("-testRecordingAndSend") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    startRecordingVoice()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                        finishRecordingVoice()
+                    }
+                }
+            }
+            if ProcessInfo.processInfo.arguments.contains("-testSendPhoto") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    aiWorkspace.sendPhoto(name: "Wireframe_Screen.png", size: "2.4 MB", localFileName: "Wireframe_Screen.png", to: thread)
+                    messages = aiWorkspace.messages(for: thread)
+                }
+            }
         }
         .sheet(isPresented: $showAttachmentSheet) {
             AttachmentPickerSheet(
-                onSendPhoto: { name in
-                    aiWorkspace.sendPhoto(name: name, to: thread)
+                onSendPhoto: { name, size in
+                    aiWorkspace.sendPhoto(name: name, size: size, localFileName: name, to: thread)
                     messages = aiWorkspace.messages(for: thread)
                 },
                 onSendFile: { name, size in
@@ -282,16 +297,18 @@ struct ChatConversationScreen: View {
                     .opacity(recordDotBlink ? 1.0 : 0.3)
                     .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true), value: recordDotBlink)
 
-                Text(String(format: "0:0%d", recordingSeconds))
+                Text(String(format: "0:%02d", recordingSeconds))
                     .font(.system(size: 15, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.white)
             }
 
             HStack(spacing: 3) {
-                ForEach(0..<12, id: \.self) { idx in
+                ForEach(0..<audioRecorder.waveformLevels.count, id: \.self) { idx in
+                    let level = audioRecorder.waveformLevels[idx]
                     RoundedRectangle(cornerRadius: 1.5)
                         .fill(TelegramPalette.skyBlue)
-                        .frame(width: 2.5, height: CGFloat([8, 18, 12, 24, 10, 16, 22, 14, 20, 8, 16, 12][idx]))
+                        .frame(width: 2.5, height: max(6, level * 26))
+                        .animation(.easeInOut(duration: 0.08), value: level)
                 }
             }
             .frame(height: 24)
@@ -405,6 +422,8 @@ struct ChatConversationScreen: View {
 
     private func startRecordingVoice() {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        audioRecorder.requestMicrophonePermission { _ in }
+        _ = audioRecorder.startRecording()
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
             isRecordingVoice = true
             recordingSeconds = 0
@@ -425,6 +444,7 @@ struct ChatConversationScreen: View {
     private func cancelRecordingVoice() {
         recordingTimer?.cancel()
         recordingTimer = nil
+        audioRecorder.cancelRecording()
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
             isRecordingVoice = false
             recordingSeconds = 0
@@ -435,13 +455,14 @@ struct ChatConversationScreen: View {
     private func finishRecordingVoice() {
         recordingTimer?.cancel()
         recordingTimer = nil
-        let sec = max(1, recordingSeconds)
+        let result = audioRecorder.stopRecording()
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
             isRecordingVoice = false
             recordingSeconds = 0
         }
-        let durationText = String(format: "0:0%d", min(sec, 9))
-        aiWorkspace.sendVoiceMessage(duration: durationText, to: thread)
+        let durationText = result?.duration ?? String(format: "0:%02d", max(1, recordingSeconds))
+        let filename = result?.filename
+        aiWorkspace.sendVoiceMessage(duration: durationText, filename: filename, to: thread)
         messages = aiWorkspace.messages(for: thread)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
@@ -729,7 +750,8 @@ private struct MessageBubble: View {
                     size: size,
                     time: message.time,
                     isOutgoing: message.side == .outgoing,
-                    onTap: { onOpenMedia(name) }
+                    localFileName: message.localFileName,
+                    onTap: { onOpenMedia(message.localFileName ?? name) }
                 )
                 .contextMenu {
                     Button {
@@ -855,6 +877,7 @@ private struct MessageBubble: View {
             }
         case let .voice(duration):
             VoiceMessageBubble(
+                messageId: message.id,
                 duration: duration,
                 time: message.time,
                 isOutgoing: message.side == .outgoing,
@@ -862,6 +885,7 @@ private struct MessageBubble: View {
                 transcription: message.transcription,
                 isTranscribing: message.isTranscribing,
                 isTranscribed: message.isTranscribed,
+                audioFileName: message.audioFileName,
                 onTranscribe: onTranscribe
             )
         case let .emoji(value):
@@ -1255,6 +1279,7 @@ struct TelegramBubbleShape: Shape {
 }
 
 private struct VoiceMessageBubble: View {
+    let messageId: String
     let duration: String
     let time: String
     let isOutgoing: Bool
@@ -1262,11 +1287,19 @@ private struct VoiceMessageBubble: View {
     let transcription: String?
     let isTranscribing: Bool
     let isTranscribed: Bool
+    let audioFileName: String?
     let onTranscribe: () -> Void
 
-    @State private var isPlaying = false
-    @State private var playbackProgress: CGFloat = 0.0
+    @ObservedObject private var playbackManager = AudioPlaybackManager.shared
     @State private var animatedHeights: [CGFloat] = [10, 20, 14, 26, 12, 18, 8, 22, 16, 10, 14, 20, 12, 8]
+
+    private var isPlayingThisMessage: Bool {
+        playbackManager.isPlaying && playbackManager.currentPlayingID == messageId
+    }
+
+    private var currentProgress: CGFloat {
+        isPlayingThisMessage ? playbackManager.playbackProgress : 0.0
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -1274,7 +1307,7 @@ private struct VoiceMessageBubble: View {
                 Button {
                     togglePlayback()
                 } label: {
-                    Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                    Image(systemName: isPlayingThisMessage ? "pause.fill" : "play.fill")
                         .font(.system(size: 16))
                         .foregroundStyle(foregroundColor)
                         .frame(width: 36, height: 36)
@@ -1287,7 +1320,7 @@ private struct VoiceMessageBubble: View {
                         ForEach(0 ..< animatedHeights.count, id: \.self) { idx in
                             RoundedRectangle(cornerRadius: 1.5)
                                 .fill(
-                                    CGFloat(idx) / CGFloat(animatedHeights.count) <= playbackProgress ?
+                                    CGFloat(idx) / CGFloat(animatedHeights.count) <= currentProgress ?
                                         foregroundColor : foregroundColor.opacity(0.4)
                                 )
                                 .frame(width: 2.5, height: animatedHeights[idx])
@@ -1297,7 +1330,7 @@ private struct VoiceMessageBubble: View {
                     .frame(height: 28)
 
                     HStack(spacing: 4) {
-                        Text(isPlaying ? String(format: "0:0%d", Int(playbackProgress * 4)) : duration)
+                        Text(isPlayingThisMessage ? String(format: "0:%02d", Int(currentProgress * 5)) : duration)
                             .font(.system(size: 11, weight: .medium))
                         Spacer()
                         Text(time)
@@ -1356,31 +1389,11 @@ private struct VoiceMessageBubble: View {
 
     private func togglePlayback() {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        isPlaying.toggle()
-        if isPlaying {
-            playbackProgress = 0.0
-            Task {
-                for i in 1...10 {
-                    guard isPlaying else { break }
-                    try? await Task.sleep(nanoseconds: 300_000_000)
-                    withAnimation {
-                        playbackProgress = CGFloat(i) / 10.0
-                        animatedHeights = [
-                            CGFloat.random(in: 8...24), CGFloat.random(in: 12...28),
-                            CGFloat.random(in: 10...22), CGFloat.random(in: 14...26),
-                            CGFloat.random(in: 8...20), CGFloat.random(in: 12...26),
-                            CGFloat.random(in: 8...18), CGFloat.random(in: 14...28),
-                            CGFloat.random(in: 10...24), CGFloat.random(in: 8...20),
-                            CGFloat.random(in: 12...22), CGFloat.random(in: 14...26),
-                            CGFloat.random(in: 10...20), CGFloat.random(in: 8...16)
-                        ]
-                    }
-                }
-                isPlaying = false
-                playbackProgress = 0.0
-                animatedHeights = [10, 20, 14, 26, 12, 18, 8, 22, 16, 10, 14, 20, 12, 8]
-            }
-        }
+        playbackManager.play(
+            filename: audioFileName,
+            fallbackText: transcription,
+            messageID: messageId
+        )
     }
 }
 
@@ -1842,29 +1855,40 @@ private struct PhotoMessageBubble: View {
     let size: String
     let time: String
     let isOutgoing: Bool
+    let localFileName: String?
     let onTap: () -> Void
+
+    @State private var loadedImage: UIImage?
 
     var body: some View {
         Button(action: onTap) {
             ZStack(alignment: .bottomTrailing) {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(photoGradient(for: name))
-                    .frame(width: 230, height: 160)
-                    .overlay {
-                        VStack(spacing: 8) {
-                            Image(systemName: photoIcon(for: name))
-                                .font(.system(size: 44, weight: .light))
-                                .foregroundStyle(.white.opacity(0.9))
-                            Text(name)
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .lineLimit(1)
-                                .padding(.horizontal, 16)
-                            Text(size)
-                                .font(.system(size: 11))
-                                .foregroundStyle(.white.opacity(0.75))
+                if let loadedImage = loadedImage {
+                    Image(uiImage: loadedImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 230, height: 160)
+                        .clipped()
+                } else {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(photoGradient(for: name))
+                        .frame(width: 230, height: 160)
+                        .overlay {
+                            VStack(spacing: 8) {
+                                Image(systemName: photoIcon(for: name))
+                                    .font(.system(size: 44, weight: .light))
+                                    .foregroundStyle(.white.opacity(0.9))
+                                Text(name)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .lineLimit(1)
+                                    .padding(.horizontal, 16)
+                                Text(size)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.white.opacity(0.75))
+                            }
                         }
-                    }
+                }
 
                 // Time & Checkmark overlay pill
                 HStack(spacing: 4) {
@@ -1889,6 +1913,16 @@ private struct PhotoMessageBubble: View {
             .shadow(color: Color.black.opacity(0.3), radius: 8, y: 4)
         }
         .buttonStyle(.plain)
+        .onAppear {
+            loadImage()
+        }
+    }
+
+    private func loadImage() {
+        let filename = localFileName ?? name
+        if let img = MediaStorageService.shared.loadImage(named: filename) {
+            loadedImage = img
+        }
     }
 
     private func photoIcon(for name: String) -> String {
@@ -1918,6 +1952,7 @@ private struct MediaViewerModal: View {
     let name: String
     @Environment(\.dismiss) private var dismiss
     @State private var scale: CGFloat = 1.0
+    @State private var loadedImage: UIImage?
 
     var body: some View {
         ZStack {
@@ -1949,14 +1984,24 @@ private struct MediaViewerModal: View {
 
                     Spacer()
 
-                    Button {
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    } label: {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 38, height: 38)
-                            .background(Color.white.opacity(0.12), in: Circle())
+                    if let img = loadedImage {
+                        ShareLink(item: Image(uiImage: img), preview: SharePreview(name, image: Image(uiImage: img))) {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 38, height: 38)
+                                .background(Color.white.opacity(0.12), in: Circle())
+                        }
+                    } else {
+                        Button {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        } label: {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 38, height: 38)
+                                .background(Color.white.opacity(0.12), in: Circle())
+                        }
                     }
                 }
                 .padding(.horizontal, 16)
@@ -1966,29 +2011,37 @@ private struct MediaViewerModal: View {
 
                 // High-res preview container
                 ZStack {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color(hex: 0x1E293B), Color(hex: 0x0F172A)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
+                    if let loadedImage = loadedImage {
+                        Image(uiImage: loadedImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: .infinity, maxHeight: 500)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    } else {
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color(hex: 0x1E293B), Color(hex: 0x0F172A)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
                             )
-                        )
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 380)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 380)
 
-                    VStack(spacing: 16) {
-                        Image(systemName: "photo.artframe")
-                            .font(.system(size: 80, weight: .ultraLight))
-                            .foregroundStyle(TelegramPalette.skyBlue)
+                        VStack(spacing: 16) {
+                            Image(systemName: "photo.artframe")
+                                .font(.system(size: 80, weight: .ultraLight))
+                                .foregroundStyle(TelegramPalette.skyBlue)
 
-                        Text(name)
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(.white)
+                            Text(name)
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundStyle(.white)
 
-                        Text("High-Definition Asset Preview")
-                            .font(.system(size: 14))
-                            .foregroundStyle(TelegramPalette.mutedText)
+                            Text("High-Definition Asset Preview")
+                                .font(.system(size: 14))
+                                .foregroundStyle(TelegramPalette.mutedText)
+                        }
                     }
                 }
                 .padding(.horizontal, 20)
@@ -2005,6 +2058,10 @@ private struct MediaViewerModal: View {
                 HStack(spacing: 40) {
                     Button {
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        if let img = loadedImage {
+                            UIImageWriteToSavedPhotosAlbum(img, nil, nil, nil)
+                            UINotificationFeedbackGenerator().notificationOccurred(.success)
+                        }
                     } label: {
                         VStack(spacing: 4) {
                             Image(systemName: "arrow.down.to.line")
@@ -2042,12 +2099,15 @@ private struct MediaViewerModal: View {
                 .padding(.bottom, 36)
             }
         }
+        .onAppear {
+            loadedImage = MediaStorageService.shared.loadImage(named: name)
+        }
     }
 }
 
 // MARK: - Attachment Picker Sheet
 private struct AttachmentPickerSheet: View {
-    let onSendPhoto: (String) -> Void
+    let onSendPhoto: (String, String) -> Void
     let onSendFile: (String, String) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -2095,18 +2155,26 @@ private struct AttachmentPickerSheet: View {
                         ForEach(sampleGalleryPhotos, id: \.title) { item in
                             Button {
                                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                                onSendPhoto(item.title)
+                                onSendPhoto(item.title, "1.8 MB")
                                 dismiss()
                             } label: {
                                 ZStack(alignment: .bottomLeading) {
-                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .fill(item.color.opacity(0.3))
-                                        .frame(width: 110, height: 110)
-                                        .overlay {
-                                            Image(systemName: item.icon)
-                                                .font(.system(size: 32))
-                                                .foregroundStyle(item.color)
-                                        }
+                                    if let img = MediaStorageService.shared.loadImage(named: item.title) {
+                                        Image(uiImage: img)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 110, height: 110)
+                                            .clipped()
+                                    } else {
+                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                            .fill(item.color.opacity(0.3))
+                                            .frame(width: 110, height: 110)
+                                            .overlay {
+                                                Image(systemName: item.icon)
+                                                    .font(.system(size: 32))
+                                                    .foregroundStyle(item.color)
+                                            }
+                                    }
 
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(item.title)
@@ -2136,11 +2204,19 @@ private struct AttachmentPickerSheet: View {
                     PhotosPicker(selection: $selectedPhotoPickerItem, matching: .images) {
                         attachmentActionItem(title: "Gallery", icon: "photo.on.rectangle.angled", color: Color(hex: 0x0A84FF))
                     }
-                    .onChange(of: selectedPhotoPickerItem) { _ in
-                        if selectedPhotoPickerItem != nil {
-                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                            onSendPhoto("User_Photo_\(Int.random(in: 100...999)).jpg")
-                            dismiss()
+                    .onChange(of: selectedPhotoPickerItem) { newItem in
+                        guard let newItem = newItem else { return }
+                        Task {
+                            if let data = try? await newItem.loadTransferable(type: Data.self) {
+                                let filename = "User_Photo_\(Int.random(in: 100...999)).jpg"
+                                MediaStorageService.shared.saveImage(data: data, filename: filename)
+                                let sizeStr = MediaStorageService.shared.fileSizeString(for: filename)
+                                await MainActor.run {
+                                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                    onSendPhoto(filename, sizeStr)
+                                    dismiss()
+                                }
+                            }
                         }
                     }
 
