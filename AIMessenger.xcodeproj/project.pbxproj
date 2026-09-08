@@ -27,6 +27,8 @@
 		B10000010000000000000013 /* MediaStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000013 /* MediaStorageService.swift */; };
 		B10000010000000000000014 /* AudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000014 /* AudioEngine.swift */; };
 		B10000010000000000000015 /* SpeechTranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000015 /* SpeechTranscriptionService.swift */; };
+		B10000010000000000000016 /* VideoNoteRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000016 /* VideoNoteRecorder.swift */; };
+		B10000010000000000000017 /* AppNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000017 /* AppNotificationService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -51,6 +53,8 @@
 		B20000010000000000000013 /* MediaStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaStorageService.swift; sourceTree = "<group>"; };
 		B20000010000000000000014 /* AudioEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioEngine.swift; sourceTree = "<group>"; };
 		B20000010000000000000015 /* SpeechTranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechTranscriptionService.swift; sourceTree = "<group>"; };
+		B20000010000000000000016 /* VideoNoteRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoNoteRecorder.swift; sourceTree = "<group>"; };
+		B20000010000000000000017 /* AppNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNotificationService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -102,6 +106,8 @@
 				B20000010000000000000013 /* MediaStorageService.swift */,
 				B20000010000000000000014 /* AudioEngine.swift */,
 				B20000010000000000000015 /* SpeechTranscriptionService.swift */,
+				B20000010000000000000016 /* VideoNoteRecorder.swift */,
+				B20000010000000000000017 /* AppNotificationService.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -278,6 +284,8 @@
 				B10000010000000000000013 /* MediaStorageService.swift in Sources */,
 				B10000010000000000000014 /* AudioEngine.swift in Sources */,
 				B10000010000000000000015 /* SpeechTranscriptionService.swift in Sources */,
+				B10000010000000000000016 /* VideoNoteRecorder.swift in Sources */,
+				B10000010000000000000017 /* AppNotificationService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

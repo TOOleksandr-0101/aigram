@@ -15,6 +15,10 @@ final class MediaStorageService {
         return dir
     }
 
+    var mediaDirectory: URL {
+        storageDirectory
+    }
+
     private init() {
         seedPresetAssetsIfNeeded()
     }
@@ -23,9 +27,28 @@ final class MediaStorageService {
         storageDirectory.appendingPathComponent(filename)
     }
 
+    func videoURL(for filename: String) -> URL {
+        fileURL(for: filename)
+    }
+
     func fileExists(filename: String) -> Bool {
         let url = fileURL(for: filename)
         return fileManager.fileExists(atPath: url.path)
+    }
+
+    @discardableResult
+    func saveVideo(from sourceURL: URL, filename: String) -> URL? {
+        let destination = fileURL(for: filename)
+        do {
+            if fileManager.fileExists(atPath: destination.path) {
+                try fileManager.removeItem(at: destination)
+            }
+            try fileManager.copyItem(at: sourceURL, to: destination)
+            return destination
+        } catch {
+            print("[MediaStorageService] Error saving video: \(error)")
+            return nil
+        }
     }
 
     @discardableResult

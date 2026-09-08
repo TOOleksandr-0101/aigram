@@ -2,60 +2,132 @@ import SwiftUI
 
 struct NotificationsScreen: View {
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var notificationService = AppNotificationService.shared
+
     @State private var accountNotifications = true
-    @State private var messageNotifications = true
-    @State private var messagePreview = true
     @State private var groupNotifications = true
-    @State private var groupPreview = true
     @State private var channelNotifications = true
-    @State private var channelPreview = true
+    @State private var testBannerSent = false
 
     var body: some View {
         DetailScreenContainer(title: "Notifications", backTitle: "Back", dismissAction: { dismiss() }) {
             VStack(spacing: 22) {
+                // System Permission & Test Card
                 lightGroup {
-                    toggleRow("Show notifications from", isOn: $accountNotifications)
-                    footerNote("Turn this off if you want to receive notifications only from your active account.")
+                    sectionTitle("System Permission")
+
+                    VStack(spacing: 12) {
+                        HStack {
+                            Text("iOS Push Status")
+                                .font(.system(size: 16))
+                                .foregroundStyle(TelegramPalette.settingsPrimaryText)
+
+                            Spacer()
+
+                            Text(notificationService.notificationsEnabled ? "Enabled" : "Not Permitted")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(notificationService.notificationsEnabled ? Color(hex: 0x17975F) : Color(hex: 0xC67A00))
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 14)
+
+                        divider
+
+                        if !notificationService.notificationsEnabled {
+                            Button {
+                                Task {
+                                    _ = await notificationService.requestAuthorization()
+                                }
+                            } label: {
+                                HStack {
+                                    Image(systemName: "bell.badge.fill")
+                                    Text("Allow System Notifications")
+                                        .font(.system(size: 16, weight: .semibold))
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 44)
+                                .background(TelegramPalette.accentBlue)
+                                .foregroundStyle(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                .padding(.horizontal, 16)
+                            }
+                        }
+
+                        Button {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            notificationService.sendTestNotificationNow()
+                            withAnimation {
+                                testBannerSent = true
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                                withAnimation {
+                                    testBannerSent = false
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: "paperplane.fill")
+                                Text(testBannerSent ? "Banner Dispatched!" : "Send Test Notification Now")
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                            .background(testBannerSent ? Color(hex: 0x17975F) : Color.white.opacity(0.08))
+                            .foregroundStyle(testBannerSent ? .white : TelegramPalette.settingsPrimaryText)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .padding(.horizontal, 16)
+                        }
+
+                        if testBannerSent {
+                            HStack(spacing: 6) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(Color(hex: 0x17975F))
+                                Text("Check top of screen for native iOS notification banner!")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(TelegramPalette.settingsSecondaryText)
+                            }
+                            .padding(.horizontal, 16)
+                            .transition(.opacity)
+                        }
+
+                        Spacer().frame(height: 4)
+                    }
+
+                    footerNote("AIGram delivers real-time local push notifications when AI collaborators finish tasks, send voice notes, or update projects.")
                 }
 
                 lightGroup {
                     sectionTitle("Message notifications")
-                    toggleRow("Show Notifications", isOn: $messageNotifications)
+                    toggleRow("Sound", isOn: $notificationService.soundEnabled)
                     divider
-                    toggleRow("Message Preview", isOn: $messagePreview)
+                    toggleRow("Message Preview", isOn: $notificationService.previewEnabled)
                     divider
-                    chevronRow("Sound", value: "None")
-                    divider
-                    chevronRow("Exceptions", value: "66 chats")
-                    footerNote("Set custom notifications for specific users.")
+                    chevronRow("Exceptions", value: "None")
+                    footerNote("Controls whether notification previews and alert tones are played when agents reply.")
                 }
 
                 lightGroup {
-                    sectionTitle("Group notifications")
-                    toggleRow("Show Notifications", isOn: $groupNotifications)
+                    sectionTitle("Group & Workspace notifications")
+                    toggleRow("Show Group Notifications", isOn: $groupNotifications)
                     divider
-                    toggleRow("Message Preview", isOn: $groupPreview)
+                    chevronRow("Sound", value: "Chord")
                     divider
-                    chevronRow("Sound", value: "None")
-                    divider
-                    chevronRow("Exceptions", value: "Add")
-                    footerNote("Set custom notificaions for specific groups.")
-                }
-
-                lightGroup {
-                    sectionTitle("Channel notifications")
-                    toggleRow("Show Notifications", isOn: $channelNotifications)
-                    divider
-                    toggleRow("Message Preview", isOn: $channelPreview)
-                    divider
-                    chevronRow("Sound", value: "None")
-                    divider
-                    chevronRow("Exceptions", value: "5 channels")
-                    footerNote("Set custom notificaions for specific channels.")
+                    chevronRow("Exceptions", value: "Build Board")
+                    footerNote("Set notifications for collaborative group channels.")
                 }
             }
             .padding(.top, 16)
             .padding(.bottom, 32)
+        }
+        .onAppear {
+            if ProcessInfo.processInfo.arguments.contains("-sendTestNotification") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    notificationService.sendTestNotificationNow()
+                    withAnimation {
+                        testBannerSent = true
+                    }
+                }
+            }
         }
     }
 }

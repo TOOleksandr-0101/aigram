@@ -1,10 +1,12 @@
 import SwiftUI
 
 struct OpenRouterConfiguration {
-    let apiKey: String
-    let modelSlug: String
-    let useZeroRetention: Bool
-    let denyProviderLogging: Bool
+    var apiKey: String
+    var modelSlug: String
+    var useZeroRetention: Bool
+    var denyProviderLogging: Bool
+    var provider: LLMProviderKind = .openRouter
+    var customEndpoint: String = ""
 }
 
 private struct StoredConversationState: Codable {
@@ -15,7 +17,7 @@ private struct StoredConversationState: Codable {
 
 @MainActor
 final class AIWorkspace: ObservableObject {
-    private static let conversationSchemaVersion = 2
+    private static let conversationSchemaVersion = 4
 
     @Published var displayName: String {
         didSet { defaults.set(displayName, forKey: Keys.displayName) }
@@ -35,6 +37,14 @@ final class AIWorkspace: ObservableObject {
 
     @Published var modelSlug: String {
         didSet { defaults.set(modelSlug, forKey: Keys.modelSlug) }
+    }
+
+    @Published var selectedProvider: LLMProviderKind {
+        didSet { defaults.set(selectedProvider.rawValue, forKey: Keys.selectedProvider) }
+    }
+
+    @Published var customEndpoint: String {
+        didSet { defaults.set(customEndpoint, forKey: Keys.customEndpoint) }
     }
 
     @Published var useZeroRetention: Bool {
@@ -65,6 +75,12 @@ final class AIWorkspace: ObservableObject {
         self.bio = defaults.string(forKey: Keys.bio) ?? "Private AI chat hub for study, coding, research, and design."
         self.apiKey = defaults.string(forKey: Keys.apiKey) ?? ""
         self.modelSlug = defaults.string(forKey: Keys.modelSlug) ?? "qwen/qwen3.5-9b"
+        if let provRaw = defaults.string(forKey: Keys.selectedProvider), let prov = LLMProviderKind(rawValue: provRaw) {
+            self.selectedProvider = prov
+        } else {
+            self.selectedProvider = .openRouter
+        }
+        self.customEndpoint = defaults.string(forKey: Keys.customEndpoint) ?? ""
         self.useZeroRetention = defaults.object(forKey: Keys.useZeroRetention) as? Bool ?? true
         self.denyProviderLogging = defaults.object(forKey: Keys.denyProviderLogging) as? Bool ?? true
         if let raw = defaults.string(forKey: Keys.selectedWallpaper), let wp = ChatWallpaperKind(rawValue: raw) {
@@ -193,17 +209,47 @@ final class AIWorkspace: ObservableObject {
         sendPhoto(name: name, size: size, localFileName: localFileName, to: thread)
     }
 
-    func sendVideoNote(duration: String, to thread: ChatThread) {
+    func sendVideoNote(duration: String, filename: String? = nil, to thread: ChatThread) {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
         let msg = ConversationMessage(
             id: UUID().uuidString,
             side: .outgoing,
             payload: .videoNote(duration: duration),
+            time: formatter.string(from: Date()),
+            localFileName: filename
+        )
+        appendMessage(msg, to: thread)
+        generateAIResponseIfNeeded(for: msg, in: thread)
+    }
+
+    func sendInteractiveWidget(_ widget: InteractiveWidget, to thread: ChatThread) {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        let msg = ConversationMessage(
+            id: UUID().uuidString,
+            side: .outgoing,
+            payload: .widget(widget),
             time: formatter.string(from: Date())
         )
         appendMessage(msg, to: thread)
         generateAIResponseIfNeeded(for: msg, in: thread)
+    }
+
+    func updateWidgetState(widgetId: String, newStatus: String, newTab: String? = nil, newOutput: String? = nil, in thread: ChatThread) {
+        var current = messages(for: thread)
+        guard let index = current.firstIndex(where: {
+            if case let .widget(w) = $0.payload, w.id == widgetId { return true }
+            return false
+        }) else { return }
+
+        if case var .widget(w) = current[index].payload {
+            w.currentStatus = newStatus
+            if let newTab = newTab { w.selectedMetricTab = newTab }
+            if let newOutput = newOutput { w.consoleOutput = newOutput }
+            current[index].payload = .widget(w)
+            replaceMessages(current, for: thread)
+        }
     }
 
     func sendSticker(name: String, emoji: String, to thread: ChatThread) {
@@ -300,6 +346,8 @@ final class AIWorkspace: ObservableObject {
                 promptSummary = "[Пользователь отправил фото/макет: \(name)]"
             case let .videoNote(duration):
                 promptSummary = "[Пользователь записал видеосообщение: \(duration)]"
+            case let .widget(widget):
+                promptSummary = "[Пользователь обновил интерактивный виджет «\(widget.title)» со статусом: \(widget.currentStatus)]"
             default:
                 return
             }
@@ -339,6 +387,15 @@ final class AIWorkspace: ObservableObject {
 
             self.appendMessage(replyMsg, to: thread)
             UINotificationFeedbackGenerator().notificationOccurred(.success)
+
+            // Trigger local push notification
+            AppNotificationService.shared.scheduleLocalNotification(
+                title: replyMsg.authorName ?? thread.title,
+                subtitle: thread.isGroup ? thread.title : "AIGram Contact",
+                body: finalReply,
+                delaySeconds: 1.0,
+                threadId: thread.id
+            )
         }
     }
 
@@ -371,7 +428,18 @@ final class AIWorkspace: ObservableObject {
                 return "Изображение (\(name)) получено и сохранено в локальном хранилище AIGram. Готов разобрать детали."
             }
         case .videoNote:
-            return "Посмотрел видеосообщение! Отличный темп и понятная подача. Зафиксировал всё в задачах проекта."
+            switch thread.id {
+            case "design-scout":
+                return "Посмотрел видеосообщение! Динамика анимаций и жесты смахивания работают плавно. Рекомендую сохранить такой темп взаимодействия."
+            case "product-coach":
+                return "Видео-заметку принял. Отличный питч! Зафиксировал все требования по онбордингу и метрикам удержания."
+            case "code-partner":
+                return "Видео посмотрел. Конвейер сборки и рендеринг видео-кружочка отрабатывают стабильно. Можем добавлять в продакшен."
+            default:
+                return "Посмотрел видео-заметку! Отличная подача. Зафиксировал всё в задачах проекта."
+            }
+        case let .widget(widget):
+            return "Синхронизировал данные интерактивного виджета «\(widget.title)». Текущий статус: [\(widget.currentStatus)]."
         default:
             return "Сообщение принято и сохранено."
         }
@@ -419,7 +487,8 @@ final class AIWorkspace: ObservableObject {
     }
 
     var isConfigured: Bool {
-        trimmedAPIKey.isEmpty == false
+        if !selectedProvider.requiresKey { return true }
+        return trimmedAPIKey.isEmpty == false
     }
 
     var initials: String {
@@ -438,7 +507,7 @@ final class AIWorkspace: ObservableObject {
     }
 
     var connectionLabel: String {
-        isConfigured ? "OpenRouter connected" : "Local fallback only"
+        isConfigured ? "\(selectedProvider.rawValue) ready" : "Local fallback only"
     }
 
     var configurationSnapshot: OpenRouterConfiguration {
@@ -446,7 +515,9 @@ final class AIWorkspace: ObservableObject {
             apiKey: trimmedAPIKey,
             modelSlug: trimmedModelSlug,
             useZeroRetention: useZeroRetention,
-            denyProviderLogging: denyProviderLogging
+            denyProviderLogging: denyProviderLogging,
+            provider: selectedProvider,
+            customEndpoint: customEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         )
     }
 
@@ -578,6 +649,8 @@ final class AIWorkspace: ObservableObject {
             baseText = "Video message (\(duration))"
         case let .sticker(_, emoji):
             baseText = "\(emoji) Sticker"
+        case let .widget(widget):
+            baseText = "⚡ \(widget.title) (\(widget.currentStatus))"
         }
 
         if let authorName = message.authorName, message.side == .incoming {
@@ -637,17 +710,11 @@ final class AIWorkspace: ObservableObject {
         let now = Date()
 
         switch thread.id {
-        case "memory-vault":
-            return calendar.date(byAdding: .day, value: -2, to: now) ?? now
         case "design-scout":
-            return calendar.date(byAdding: .day, value: -1, to: now) ?? now
-        case "seminar-circle":
-            return calendar.date(byAdding: .hour, value: -18, to: now) ?? now
+            return calendar.date(byAdding: .minute, value: -12, to: now) ?? now
         case "product-coach":
-            return calendar.date(byAdding: .minute, value: -90, to: now) ?? now
-        case "build-board":
-            return calendar.date(byAdding: .minute, value: -35, to: now) ?? now
-        case "research-desk":
+            return calendar.date(byAdding: .hour, value: -1, to: now) ?? now
+        case "study-room":
             return calendar.date(byAdding: .hour, value: -3, to: now) ?? now
         case "visual-lab":
             return calendar.date(byAdding: .hour, value: -5, to: now) ?? now
@@ -665,6 +732,8 @@ private enum Keys {
     static let bio = "aiworkspace.profile.bio"
     static let apiKey = "aiworkspace.openrouter.apiKey"
     static let modelSlug = "aiworkspace.openrouter.modelSlug"
+    static let selectedProvider = "aiworkspace.llm.provider"
+    static let customEndpoint = "aiworkspace.llm.customEndpoint"
     static let useZeroRetention = "aiworkspace.openrouter.useZeroRetention"
     static let denyProviderLogging = "aiworkspace.openrouter.denyProviderLogging"
     static let storedConversations = "aiworkspace.conversations.state"

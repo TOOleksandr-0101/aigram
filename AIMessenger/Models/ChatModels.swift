@@ -134,6 +134,86 @@ enum ChatWallpaperKind: String, CaseIterable, Identifiable, Codable {
     }
 }
 
+struct InteractiveWidget: Hashable, Codable, Identifiable {
+    enum Kind: String, Hashable, Codable {
+        case metricsChart
+        case codeRunner
+        case kanbanTask
+    }
+
+    let id: String
+    let kind: Kind
+    var title: String
+    var subtitle: String
+    var currentStatus: String
+    var codeSnippet: String?
+    var consoleOutput: String?
+    var metricValues: [Double]?
+    var metricLabels: [String]?
+    var selectedMetricTab: String?
+
+    init(
+        id: String = UUID().uuidString,
+        kind: Kind,
+        title: String,
+        subtitle: String,
+        currentStatus: String,
+        codeSnippet: String? = nil,
+        consoleOutput: String? = nil,
+        metricValues: [Double]? = nil,
+        metricLabels: [String]? = nil,
+        selectedMetricTab: String? = nil
+    ) {
+        self.id = id
+        self.kind = kind
+        self.title = title
+        self.subtitle = subtitle
+        self.currentStatus = currentStatus
+        self.codeSnippet = codeSnippet
+        self.consoleOutput = consoleOutput
+        self.metricValues = metricValues
+        self.metricLabels = metricLabels
+        self.selectedMetricTab = selectedMetricTab
+    }
+
+    static func sampleMetricsWidget() -> InteractiveWidget {
+        InteractiveWidget(
+            kind: .metricsChart,
+            title: "Model Latency & Throughput",
+            subtitle: "Live Telemetry Benchmarks",
+            currentStatus: "P99: 38ms",
+            selectedMetricTab: "Latency"
+        )
+    }
+
+    static func sampleCodeRunnerWidget() -> InteractiveWidget {
+        InteractiveWidget(
+            kind: .codeRunner,
+            title: "Swift 6 Concurrency Sandbox",
+            subtitle: "Actor Isolation Benchmark",
+            currentStatus: "Ready to run",
+            codeSnippet: """
+            actor MessageDispatcher {
+                var queue: [String] = []
+                func dispatch(_ msg: String) async {
+                    queue.append(msg)
+                    print("[Dispatcher] Processed \\(msg)")
+                }
+            }
+            """
+        )
+    }
+
+    static func sampleKanbanWidget() -> InteractiveWidget {
+        InteractiveWidget(
+            kind: .kanbanTask,
+            title: "Hardware Video Notes Pipeline",
+            subtitle: "Real-time AVCaptureSession & AVPlayer",
+            currentStatus: "In Progress"
+        )
+    }
+}
+
 struct ConversationMessage: Identifiable, Hashable, Codable {
     enum Side: Hashable, Codable {
         case incoming
@@ -147,11 +227,12 @@ struct ConversationMessage: Identifiable, Hashable, Codable {
         case voice(duration: String)
         case videoNote(duration: String)
         case sticker(name: String, emoji: String)
+        case widget(InteractiveWidget)
     }
 
     let id: String
     let side: Side
-    let payload: Payload
+    var payload: Payload
     let time: String
     let authorName: String?
     let authorAvatar: ChatAvatarKind?
@@ -197,6 +278,11 @@ struct ConversationMessage: Identifiable, Hashable, Codable {
         return false
     }
 
+    var isWidget: Bool {
+        if case .widget = payload { return true }
+        return false
+    }
+
     var isTranscribable: Bool {
         isVoice || isVideoNote
     }
@@ -205,6 +291,14 @@ struct ConversationMessage: Identifiable, Hashable, Codable {
         if let local = localFileName { return local }
         if case .voice = payload {
             return "voice_\(id).m4a"
+        }
+        return nil
+    }
+
+    var videoFileName: String? {
+        if let local = localFileName { return local }
+        if case .videoNote = payload {
+            return "video_note_\(id).mp4"
         }
         return nil
     }
@@ -724,16 +818,28 @@ extension ConversationMessage {
                     time: "09:31"
                 ),
                 ConversationMessage(
+                    id: "\(thread.id)-widget-kanban",
+                    side: .incoming,
+                    payload: .widget(InteractiveWidget.sampleKanbanWidget()),
+                    time: "09:32"
+                ),
+                ConversationMessage(
+                    id: "\(thread.id)-widget-chart",
+                    side: .incoming,
+                    payload: .widget(InteractiveWidget.sampleMetricsWidget()),
+                    time: "09:33"
+                ),
+                ConversationMessage(
                     id: "\(thread.id)-3",
                     side: .incoming,
                     payload: .sticker(name: "Robot Joy", emoji: "🤖"),
-                    time: "09:31"
+                    time: "09:34"
                 ),
                 ConversationMessage(
                     id: "\(thread.id)-4",
                     side: .incoming,
                     payload: .text("Кружочек зафиксирован! Проанализировал таймлайн видео-заметки: контраст и скругления идеальные."),
-                    time: "09:31"
+                    time: "09:34"
                 )
             ]
         case "seminar-circle":
@@ -822,8 +928,26 @@ extension ConversationMessage {
                 ConversationMessage(
                     id: "\(thread.id)-1",
                     side: .incoming,
-                    payload: .text("I checked the navigation duplication. The next thing I'd audit is where the custom header and native navigation bar overlap."),
-                    time: "Sat"
+                    payload: .text("I audited the architecture. Real hardware camera recording and sandbox code execution widgets are fully online."),
+                    time: "10:14"
+                ),
+                ConversationMessage(
+                    id: "\(thread.id)-video",
+                    side: .outgoing,
+                    payload: .videoNote(duration: "0:06"),
+                    time: "10:15"
+                ),
+                ConversationMessage(
+                    id: "\(thread.id)-runner",
+                    side: .incoming,
+                    payload: .widget(InteractiveWidget.sampleCodeRunnerWidget()),
+                    time: "10:16"
+                ),
+                ConversationMessage(
+                    id: "\(thread.id)-reply",
+                    side: .incoming,
+                    payload: .text("Видеоплеер кружочка и среда песочницы протестированы: отклик моментальный!"),
+                    time: "10:16"
                 )
             ]
         default:

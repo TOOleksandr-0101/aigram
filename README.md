@@ -23,6 +23,18 @@ The app is built natively with **SwiftUI** and connects directly to **OpenRouter
 ## 📸 Screenshots
 
 <p align="center">
+  <img src="docs/screenshots/aigram-video-recording-live.png" width="31%" alt="AIGram Circular Video Note Recording HUD with Live Sensor" />
+  <img src="docs/screenshots/aigram-video-note-and-code-sandbox.png" width="31%" alt="AIGram Video Note Round Bubble & Swift 6 Sandbox Widget" />
+  <img src="docs/screenshots/aigram-interactive-widgets.png" width="31%" alt="AIGram Interactive AI Widgets (Kanban & Telemetry Chart)" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/aigram-ai-gateway-live.png" width="31%" alt="AIGram Multi-Provider LLM Gateway with Live Latency Ping" />
+  <img src="docs/screenshots/aigram-notifications-live.png" width="31%" alt="AIGram Push Notifications & In-App Alerts" />
+  <img src="docs/screenshots/aigram-widget-picker-sheet.png" width="31%" alt="AIGram AI Canvas & Mini-Apps Sheet" />
+</p>
+
+<p align="center">
   <img src="docs/screenshots/aigram-live-recording-meter.png" width="31%" alt="AIGram Native Microphone Recording with Live Waveforms" />
   <img src="docs/screenshots/aigram-voice-sent-live.png" width="31%" alt="AIGram Sent Voice Message & AI Reply" />
   <img src="docs/screenshots/aigram-photo-ai-reply.png" width="31%" alt="AIGram Real Photo Rendering & Visual Critique" />
@@ -34,15 +46,38 @@ The app is built natively with **SwiftUI** and connects directly to **OpenRouter
   <img src="docs/screenshots/aigram-appearance-wallpaper.png" width="31%" alt="AIGram Appearance & Chat Wallpapers" />
 </p>
 
-<p align="center">
-  <img src="docs/screenshots/aimessenger-stories-and-folders.png" width="31%" alt="AIGram Chats with Stories & Folders" />
-  <img src="docs/screenshots/aimessenger-story-viewer.png" width="31%" alt="AIGram Story Viewer" />
-  <img src="docs/screenshots/aimessenger-telegram-settings.png" width="31%" alt="AIGram Dark Settings & Premium" />
-</p>
-
 ---
 
 ## 🚀 Key Features
+
+* **🎥 Hardware Circular Video Notes («Кружочки»)**:
+  * Native `AVCaptureSession` camera pipeline with front-facing camera integration.
+  * Live recording HUD overlay with `🔴 REC` timer, circular viewfinder with pulsing outer glow, and tactile Discard/Send actions.
+  * Native `AVAssetWriter` pixel buffer encoding producing valid 30fps `.mp4` video files saved to `Documents/AIGramMedia/`.
+  * Circular video playback via `AVPlayerLayer` (`CircularVideoPlayerView`) with circular masking, radial playback progress ring, and playback toggle.
+  * On-device speech recognition (`Speech.framework`) transcription badge (`→A`) for video notes.
+
+* **📊 Interactive AI Mini-Apps & Canvas Widgets in Chat**:
+  * Rich, responsive interactive widgets embedded natively into chat message bubbles:
+    * **Telemetry & Metrics Chart**: Dynamic tabbed chart (`Latency`, `TPS`, `Cache`) comparing Groq, Qwen, GPT-4o, and Claude 3.5 Sonnet benchmarks.
+    * **Code Runner Sandbox**: Interactive Swift 6 concurrency code execution environment with live terminal console output simulation.
+    * **Sprint Kanban Task**: Interactive state switcher (`To Do`, `In Progress`, `Done`) that triggers contextual AI collaborator replies.
+  * Quick-launch via **AI Widget** action in the media attachment picker or dedicated **AI Canvas & Mini-Apps** bottom sheet.
+
+* **🌐 Multi-Provider LLM Gateway**:
+  * Unified backend support across 4 distinct AI providers:
+    * **OpenRouter**: Access to Claude 3.5 Sonnet, GPT-4o, DeepSeek V3, Llama 3.3 70B, Qwen 3.5 9B.
+    * **Direct OpenAI**: Direct endpoint connection to OpenAI models (`gpt-4o`, `gpt-4o-mini`, `o1`).
+    * **Groq Cloud**: Ultra-fast inference (500+ tokens/sec) for Llama 3.3 70B, Llama 3.1 8B, Mixtral 8x7B.
+    * **Local Ollama**: 100% private, on-device local inference (`http://localhost:11434`) for Llama 3.2, Qwen 2.5 Coder, Mistral 7B.
+  * **⚡️ Live Diagnostics Ping**: One-tap "Test Connection" button measuring latency in milliseconds with visual status badges.
+  * Strict **Zero Data Retention** & Provider Logging denial flags for complete privacy.
+
+* **🔔 Native Local Push Notifications**:
+  * Powered by Apple's `UserNotifications.framework` (`AppNotificationService`).
+  * In-app push permission authorization and test notification dispatch.
+  * Foreground banner alerts with sound and badge counts.
+  * Automatic notification scheduling whenever an AI persona responds to your questions or media.
 
 * **🎙️ Real Microphone Voice Recording & Live Waveform Metering**:
   * Native `AVAudioRecorder` recording genuine `.m4a` files directly into `Documents/AIGramMedia/`.
@@ -73,11 +108,6 @@ The app is built natively with **SwiftUI** and connects directly to **OpenRouter
   * 5 selectable chat wallpapers: **Dark Doodles**, **Midnight Pure**, **Cyber Neon**, **Sunset Velvet**, and **Emerald Matrix**.
   * Dynamic real-time wallpaper switching with persistence across app launches.
 
-* **🎥 Circular Video Notes («Кружочки»)**:
-  * Circular video bubbles with live radial progress ring animation.
-  * One-tap switch between Voice message mode and Video note mode with tactile haptic feedback.
-  * Play/pause controls, duration pill countdown, and outgoing double checkmarks.
-
 * **🎭 Native Stickers & Emoji Sheet**:
   * Dedicated emoji button presenting modal bottom sheet with **Stickers**, **Emoji**, and **GIFs** tabs.
   * Sends borderless floating stickers with timestamps directly into the chat stream.
@@ -96,30 +126,6 @@ The app is built natively with **SwiftUI** and connects directly to **OpenRouter
   * Inset grouped settings sections with colored icon badges.
   * Native **QR Code Profile Modal** with avatar centerpiece, share sheet, and profile link (`aigram.app/...`).
 
-* **📞 Interactive Audio Call Experience**:
-  * Full-screen audio call modal accessible from any chat or the Calls tab.
-  * Pulsing audio ripple animations, avatar glow, and signature 4-symbol encryption indicator (`🔐 ⚡️ 🤖 🧠`).
-  * Live call duration counter, mute, speaker, and end call controls.
-
-* **👥 Group Chats & Multi-Agent Discussions**:
-  * Group threads like **Build Board** and **Seminar Circle** feature multi-agent interactions where different bots converse, critique, and collaborate.
-
-* **🌐 Universal AI Gateway (OpenRouter)**:
-  * One-tap switching between popular model presets:
-    * **Claude 3.5 Sonnet** (Coding, Architecture, Deep Reasoning)
-    * **GPT-4o** (Multimodal & Universal Knowledge)
-    * **DeepSeek V3** (Fast, High-Performance, Economical)
-    * **Llama 3.3 70B** (State-of-the-art Open Weights)
-    * **Qwen 3.5 9B** (Default low-latency budget model)
-  * Custom model slug support for any model on OpenRouter.
-
-* **🛡️ Privacy & Zero Data Retention**:
-  * One-tap toggles for OpenRouter Zero Data Retention (ZDR) and Provider Logging denial flags.
-  * All credentials and conversation states stored locally using private on-device storage.
-
-* **⚡️ Ready Out-of-the-Box (Offline Fallback Mode)**:
-  * Cloned the project without an API key? The app automatically falls back to intelligent, persona-aligned offline responses so reviewers can test all UX flows immediately.
-
 ---
 
 ## 🏗️ Architecture
@@ -127,29 +133,32 @@ The app is built natively with **SwiftUI** and connects directly to **OpenRouter
 ```
 AIMessenger/
 ├── App/
-│   ├── AIMessengerApp.swift       # App entry point
-│   ├── RootView.swift             # Root navigation shell and tab coordinator
-│   ├── TelegramTheme.swift        # Palette tokens, typography, and styling
-│   ├── AIWorkspace.swift          # Central state store, memory notes, and persistence
-│   └── OpenRouterService.swift    # Network client for OpenRouter completions
+│   ├── AIMessengerApp.swift          # App entry point & notification service init
+│   ├── RootView.swift                # Root navigation shell and tab coordinator
+│   ├── TelegramTheme.swift           # Palette tokens, typography, and styling
+│   ├── AIWorkspace.swift             # Central state store, memory notes, and persistence
+│   ├── OpenRouterService.swift       # Multi-provider LLM Gateway (OpenRouter, OpenAI, Groq, Ollama)
+│   ├── VideoNoteRecorder.swift       # Hardware camera capture, MP4 generation & circular video player
+│   ├── MediaStorageService.swift     # Disk storage for audio, video notes, and photos
+│   └── AppNotificationService.swift  # UserNotifications delegate and local push alerts
 ├── Features/
 │   ├── Chats/
-│   │   ├── ChatsScreen.swift              # Thread list, Stories bar, folders, unread badges
-│   │   └── ChatConversationScreen.swift  # Video notes, stickers, bubbles, typing indicator
+│   │   ├── ChatsScreen.swift         # Thread list, Stories bar, folders, unread badges
+│   │   └── ChatConversationScreen.swift # Video notes, interactive widgets, bubbles, transcription
 │   ├── Calls/
-│   │   ├── CallsScreen.swift              # Call history, initiator, and fullscreen call modal
+│   │   └── CallsScreen.swift         # Call history, initiator, and fullscreen call modal
 │   ├── Contacts/
-│   │   └── ContactsFlow.swift             # AI agent directory, profile cards, status
+│   │   └── ContactsFlow.swift        # AI agent directory, profile cards, status
 │   ├── Settings/
-│   │   ├── SettingsHubScreen.swift        # Dark Settings, AIGram Premium, QR Code sheet
-│   │   ├── AIGatewayScreen.swift          # Model presets, API key, privacy flags
-│   │   └── SettingsDetailScreens.swift    # Profile, Appearance, Storage, Notifications
+│   │   ├── SettingsHubScreen.swift   # Dark Settings, AIGram Premium, QR Code sheet
+│   │   ├── AIGatewayScreen.swift     # Multi-provider selector, presets, live latency diagnostics
+│   │   └── SettingsDetailScreens.swift # Notifications test, Profile, Appearance, Storage
 │   └── Shared/
-│       └── AppTabBar.swift                # Custom floating tab bar with badges
+│       └── AppTabBar.swift           # Custom floating tab bar with badges
 ├── Models/
-│   └── ChatModels.swift           # Personas, thread schemas, messages, sample data
+│   └── ChatModels.swift              # Personas, interactive widgets, payloads, sample threads
 └── Resources/
-    └── Assets.xcassets            # Color sets and App Icons
+    └── Assets.xcassets               # Color sets and App Icons
 ```
 
 ---

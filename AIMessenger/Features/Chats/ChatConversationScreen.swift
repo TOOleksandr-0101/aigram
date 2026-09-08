@@ -19,13 +19,16 @@ struct ChatConversationScreen: View {
     @State private var showAttachmentSheet = false
     @State private var selectedMediaName: String?
     @State private var isStickerSheetPresented = false
+    @State private var showWidgetPickerSheet = false
     @State private var inputMediaMode: InputMediaMode = .voice
     @State private var isRecordingVoice = false
+    @State private var isRecordingVideoNote = false
     @State private var recordingSeconds = 0
     @State private var recordDotBlink = false
     @State private var recordingTimer: Task<Void, Never>?
     @State private var errorText: String?
     @ObservedObject private var audioRecorder = AudioRecordingManager.shared
+    @ObservedObject private var videoRecorder = VideoNoteRecordingManager.shared
     private let openRouterService = OpenRouterService()
 
     enum InputMediaMode {
@@ -46,6 +49,7 @@ struct ChatConversationScreen: View {
                     ForEach(messages) { message in
                         MessageBubble(
                             message: message,
+                            thread: thread,
                             isGroupThread: thread.isGroup,
                             onReact: { emoji in
                                 aiWorkspace.addReaction(emoji: emoji, to: message.id, in: thread)
@@ -104,10 +108,25 @@ struct ChatConversationScreen: View {
                 messages = aiWorkspace.messages(for: thread)
             }
         }
+        .overlay {
+            if isRecordingVideoNote {
+                VideoNoteRecordingOverlay(
+                    duration: videoRecorder.durationString,
+                    onCancel: { cancelRecordingVideo() },
+                    onSend: { finishRecordingVideo() }
+                )
+                .transition(.opacity)
+            }
+        }
         .onAppear {
             if ProcessInfo.processInfo.arguments.contains("-showAttachment") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                     showAttachmentSheet = true
+                }
+            }
+            if ProcessInfo.processInfo.arguments.contains("-showWidgetPicker") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    showWidgetPickerSheet = true
                 }
             }
             if ProcessInfo.processInfo.arguments.contains("-testTranscribe") {
@@ -145,6 +164,25 @@ struct ChatConversationScreen: View {
                     messages = aiWorkspace.messages(for: thread)
                 }
             }
+            if ProcessInfo.processInfo.arguments.contains("-testVideoRecording") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    startRecordingVideo()
+                }
+            }
+            if ProcessInfo.processInfo.arguments.contains("-testVideoRecordAndSend") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    startRecordingVideo()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        finishRecordingVideo()
+                    }
+                }
+            }
+            if ProcessInfo.processInfo.arguments.contains("-testSendWidget") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    aiWorkspace.sendInteractiveWidget(.sampleMetricsWidget(), to: thread)
+                    messages = aiWorkspace.messages(for: thread)
+                }
+            }
         }
         .sheet(isPresented: $showAttachmentSheet) {
             AttachmentPickerSheet(
@@ -155,8 +193,17 @@ struct ChatConversationScreen: View {
                 onSendFile: { name, size in
                     aiWorkspace.sendAttachment(name: name, size: size, to: thread)
                     messages = aiWorkspace.messages(for: thread)
+                },
+                onOpenWidgetPicker: {
+                    showWidgetPickerSheet = true
                 }
             )
+        }
+        .sheet(isPresented: $showWidgetPickerSheet) {
+            WidgetPickerSheet { widget in
+                aiWorkspace.sendInteractiveWidget(widget, to: thread)
+                messages = aiWorkspace.messages(for: thread)
+            }
         }
         .fullScreenCover(item: Binding(
             get: { selectedMediaName.map { MediaItem(name: $0) } },
@@ -392,9 +439,9 @@ struct ChatConversationScreen: View {
                     }
 
                     Button {
-                        sendVideoNote()
+                        startRecordingVideo()
                     } label: {
-                        Label("Send Video Note (Кружочек)", systemImage: "camera.fill")
+                        Label("Record Video Note (Кружочек)", systemImage: "camera.circle.fill")
                     }
 
                     Button {
@@ -474,17 +521,41 @@ struct ChatConversationScreen: View {
             }
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         } else {
-            sendVideoNote()
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
-                inputMediaMode = .voice
+            startRecordingVideo()
+        }
+    }
+
+    private func startRecordingVideo() {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        Task {
+            _ = await videoRecorder.requestCameraPermission()
+            _ = await videoRecorder.startRecording()
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                isRecordingVideoNote = true
             }
         }
     }
 
-    private func sendVideoNote() {
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        aiWorkspace.sendVideoNote(duration: "0:04", to: thread)
-        messages = aiWorkspace.messages(for: thread)
+    private func cancelRecordingVideo() {
+        videoRecorder.cancelRecording()
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            isRecordingVideoNote = false
+        }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    private func finishRecordingVideo() {
+        Task {
+            let result = await videoRecorder.stopRecording()
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                isRecordingVideoNote = false
+            }
+            if let res = result {
+                aiWorkspace.sendVideoNote(duration: res.duration, filename: res.filename, to: thread)
+                messages = aiWorkspace.messages(for: thread)
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            }
+        }
     }
 
     @ViewBuilder
@@ -710,6 +781,7 @@ struct ChatConversationScreen: View {
 
 private struct MessageBubble: View {
     let message: ConversationMessage
+    let thread: ChatThread
     let isGroupThread: Bool
     let onReact: (String) -> Void
     let onDelete: () -> Void
@@ -728,12 +800,20 @@ private struct MessageBubble: View {
                     duration: duration,
                     time: message.time,
                     isOutgoing: message.side == .outgoing,
+                    localFileName: message.localFileName,
                     transcription: message.transcription,
                     isTranscribing: message.isTranscribing,
                     isTranscribed: message.isTranscribed,
                     onTranscribe: onTranscribe,
                     onReact: onReact,
                     onDelete: onDelete
+                )
+            case let .widget(widget):
+                InteractiveWidgetBubble(
+                    widget: widget,
+                    time: message.time,
+                    isOutgoing: message.side == .outgoing,
+                    thread: thread
                 )
             case let .sticker(name, emoji):
                 StickerBubble(
@@ -941,7 +1021,7 @@ private struct MessageBubble: View {
                 }
                 .foregroundStyle(foregroundColor)
             }
-        case .videoNote, .sticker:
+        case .videoNote, .sticker, .widget:
             EmptyView()
         }
     }
@@ -1401,6 +1481,7 @@ private struct VideoNoteBubble: View {
     let duration: String
     let time: String
     let isOutgoing: Bool
+    var localFileName: String? = nil
     let transcription: String?
     let isTranscribing: Bool
     let isTranscribed: Bool
@@ -1412,45 +1493,64 @@ private struct VideoNoteBubble: View {
     @State private var progress: CGFloat = 0.0
     @State private var animationTimer: Task<Void, Never>?
 
+    private var hasRealVideoFile: Bool {
+        guard let fn = localFileName else { return false }
+        return MediaStorageService.shared.fileExists(filename: fn)
+    }
+
     var body: some View {
         VStack(alignment: isOutgoing ? .trailing : .leading, spacing: 6) {
             ZStack(alignment: .bottomTrailing) {
                 ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(hex: 0x1A2332),
-                                    Color(hex: 0x0F172A),
-                                    Color(hex: 0x1E293B)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
+                    if let fn = localFileName, hasRealVideoFile {
+                        CircularVideoPlayerView(
+                            videoURL: MediaStorageService.shared.fileURL(for: fn),
+                            isPlaying: $isPlaying,
+                            progress: $progress,
+                            onFinished: {
+                                isPlaying = false
+                                progress = 0.0
+                            }
                         )
-
-                    ZStack {
-                        Image(systemName: isOutgoing ? "person.crop.circle.fill" : "sparkles")
-                            .font(.system(size: 76))
-                            .foregroundStyle(
+                        .frame(width: 200, height: 200)
+                        .clipShape(Circle())
+                    } else {
+                        Circle()
+                            .fill(
                                 LinearGradient(
-                                    colors: [Color(hex: 0x60A5FA), Color(hex: 0xA855F7)],
+                                    colors: [
+                                        Color(hex: 0x1A2332),
+                                        Color(hex: 0x0F172A),
+                                        Color(hex: 0x1E293B)
+                                    ],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
                             )
-                            .scaleEffect(isPlaying ? 1.08 : 1.0)
-                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isPlaying)
 
-                        Circle()
-                            .stroke(
-                                LinearGradient(
-                                    colors: [Color.white.opacity(0.18), Color.clear],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                ),
-                                lineWidth: 1
-                            )
+                        ZStack {
+                            Image(systemName: isOutgoing ? "person.crop.circle.fill" : "sparkles")
+                                .font(.system(size: 76))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [Color(hex: 0x60A5FA), Color(hex: 0xA855F7)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .scaleEffect(isPlaying ? 1.08 : 1.0)
+                                .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isPlaying)
+
+                            Circle()
+                                .stroke(
+                                    LinearGradient(
+                                        colors: [Color.white.opacity(0.18), Color.clear],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    ),
+                                    lineWidth: 1
+                                )
+                        }
                     }
 
                     if !isPlaying {
@@ -1589,23 +1689,25 @@ private struct VideoNoteBubble: View {
     private func togglePlayback() {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         isPlaying.toggle()
-        if isPlaying {
-            progress = 0.0
-            animationTimer?.cancel()
-            animationTimer = Task {
-                for i in 1...20 {
-                    guard isPlaying else { break }
-                    try? await Task.sleep(nanoseconds: 200_000_000)
-                    withAnimation {
-                        progress = CGFloat(i) / 20.0
+        if !hasRealVideoFile {
+            if isPlaying {
+                progress = 0.0
+                animationTimer?.cancel()
+                animationTimer = Task {
+                    for i in 1...20 {
+                        guard isPlaying else { break }
+                        try? await Task.sleep(nanoseconds: 200_000_000)
+                        withAnimation {
+                            progress = CGFloat(i) / 20.0
+                        }
                     }
+                    isPlaying = false
+                    progress = 0.0
                 }
-                isPlaying = false
+            } else {
+                animationTimer?.cancel()
                 progress = 0.0
             }
-        } else {
-            animationTimer?.cancel()
-            progress = 0.0
         }
     }
 }
@@ -2109,6 +2211,7 @@ private struct MediaViewerModal: View {
 private struct AttachmentPickerSheet: View {
     let onSendPhoto: (String, String) -> Void
     let onSendFile: (String, String) -> Void
+    var onOpenWidgetPicker: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedPhotoPickerItem: PhotosPickerItem?
@@ -2200,55 +2303,68 @@ private struct AttachmentPickerSheet: View {
             }
 
             VStack(spacing: 16) {
-                HStack(spacing: 24) {
-                    PhotosPicker(selection: $selectedPhotoPickerItem, matching: .images) {
-                        attachmentActionItem(title: "Gallery", icon: "photo.on.rectangle.angled", color: Color(hex: 0x0A84FF))
-                    }
-                    .onChange(of: selectedPhotoPickerItem) { newItem in
-                        guard let newItem = newItem else { return }
-                        Task {
-                            if let data = try? await newItem.loadTransferable(type: Data.self) {
-                                let filename = "User_Photo_\(Int.random(in: 100...999)).jpg"
-                                MediaStorageService.shared.saveImage(data: data, filename: filename)
-                                let sizeStr = MediaStorageService.shared.fileSizeString(for: filename)
-                                await MainActor.run {
-                                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                                    onSendPhoto(filename, sizeStr)
-                                    dismiss()
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 20) {
+                        PhotosPicker(selection: $selectedPhotoPickerItem, matching: .images) {
+                            attachmentActionItem(title: "Gallery", icon: "photo.on.rectangle.angled", color: Color(hex: 0x0A84FF))
+                        }
+                        .onChange(of: selectedPhotoPickerItem) { newItem in
+                            guard let newItem = newItem else { return }
+                            Task {
+                                if let data = try? await newItem.loadTransferable(type: Data.self) {
+                                    let filename = "User_Photo_\(Int.random(in: 100...999)).jpg"
+                                    MediaStorageService.shared.saveImage(data: data, filename: filename)
+                                    let sizeStr = MediaStorageService.shared.fileSizeString(for: filename)
+                                    await MainActor.run {
+                                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                        onSendPhoto(filename, sizeStr)
+                                        dismiss()
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    Button {
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        onSendFile("Spec_Sheet_v2.pdf", "4.2 MB")
-                        dismiss()
-                    } label: {
-                        attachmentActionItem(title: "File", icon: "doc.fill", color: Color(hex: 0x30B0C7))
-                    }
+                        Button {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            onSendFile("Spec_Sheet_v2.pdf", "4.2 MB")
+                            dismiss()
+                        } label: {
+                            attachmentActionItem(title: "File", icon: "doc.fill", color: Color(hex: 0x30B0C7))
+                        }
 
-                    Button {
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        onSendFile("San_Francisco_HQ.loc", "GPS Data")
-                        dismiss()
-                    } label: {
-                        attachmentActionItem(title: "Location", icon: "location.fill", color: Color(hex: 0x34C759))
-                    }
+                        Button {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            dismiss()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                onOpenWidgetPicker?()
+                            }
+                        } label: {
+                            attachmentActionItem(title: "AI Widget", icon: "sparkles", color: Color(hex: 0xAF52DE))
+                        }
 
-                    Button {
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        onSendFile("Team_Consensus_Vote.poll", "Active Poll")
-                        dismiss()
-                    } label: {
-                        attachmentActionItem(title: "Poll", icon: "chart.bar.fill", color: Color(hex: 0xFF9500))
+                        Button {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            onSendFile("San_Francisco_HQ.loc", "GPS Data")
+                            dismiss()
+                        } label: {
+                            attachmentActionItem(title: "Location", icon: "location.fill", color: Color(hex: 0x34C759))
+                        }
+
+                        Button {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            onSendFile("Team_Consensus_Vote.poll", "Active Poll")
+                            dismiss()
+                        } label: {
+                            attachmentActionItem(title: "Poll", icon: "chart.bar.fill", color: Color(hex: 0xFF9500))
+                        }
                     }
+                    .padding(.horizontal, 20)
                 }
             }
-            .padding(.top, 8)
+            .padding(.top, 4)
             .padding(.bottom, 24)
         }
-        .presentationDetents([.height(340)])
+        .presentationDetents([.height(350)])
         .background(TelegramPalette.backgroundElevated.ignoresSafeArea())
     }
 
@@ -2266,5 +2382,479 @@ private struct AttachmentPickerSheet: View {
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.white)
         }
+    }
+}
+
+// MARK: - Video Note Recording Overlay
+private struct VideoNoteRecordingOverlay: View {
+    let duration: String
+    let onCancel: () -> Void
+    let onSend: () -> Void
+
+    @State private var pulseScale: CGFloat = 1.0
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.72)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    onCancel()
+                }
+
+            VStack(spacing: 24) {
+                // Top header: REC 0:03
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(Color(hex: 0xEF4444))
+                        .frame(width: 10, height: 10)
+                        .scaleEffect(pulseScale)
+                        .animation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: pulseScale)
+
+                    Text("REC \(duration)")
+                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.white)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color.black.opacity(0.6), in: Capsule())
+
+                // Circular Video Viewfinder
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(hex: 0x1E293B), Color(hex: 0x0F172A)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+
+                    // Animated Camera Sensor Simulation
+                    VStack(spacing: 12) {
+                        Image(systemName: "video.circle.fill")
+                            .font(.system(size: 80))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [TelegramPalette.skyBlue, Color(hex: 0x8B5CF6)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .scaleEffect(pulseScale)
+
+                        Text("Live Sensor Active")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(TelegramPalette.mutedText)
+                    }
+
+                    // Dynamic Pulsing Recording Ring
+                    Circle()
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color(hex: 0xEF4444), Color(hex: 0xF59E0B)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 4
+                        )
+                        .scaleEffect(1.02)
+                }
+                .frame(width: 240, height: 240)
+                .clipShape(Circle())
+                .shadow(color: Color(hex: 0xEF4444).opacity(0.3), radius: 20)
+
+                // Controls
+                HStack(spacing: 48) {
+                    Button {
+                        onCancel()
+                    } label: {
+                        VStack(spacing: 6) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 44))
+                                .foregroundStyle(Color.white.opacity(0.6))
+                            Text("Discard")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.white)
+                        }
+                    }
+
+                    Button {
+                        onSend()
+                    } label: {
+                        VStack(spacing: 6) {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.system(size: 54))
+                                .foregroundStyle(TelegramPalette.accentBlue)
+                            Text("Send Note")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                    }
+                }
+                .padding(.top, 12)
+            }
+        }
+        .onAppear {
+            pulseScale = 1.08
+        }
+    }
+}
+
+// MARK: - Interactive Widget Bubble
+private struct InteractiveWidgetBubble: View {
+    let widget: InteractiveWidget
+    let time: String
+    let isOutgoing: Bool
+    let thread: ChatThread
+
+    @EnvironmentObject private var aiWorkspace: AIWorkspace
+    @State private var activeTab: String = "Latency"
+    @State private var isRunningCode: Bool = false
+    @State private var consoleOutput: String? = nil
+    @State private var currentStatus: String = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Header
+            HStack(spacing: 8) {
+                Image(systemName: widgetIcon)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(widgetAccentColor)
+
+                Text(widget.title)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(.white)
+
+                Spacer()
+
+                Text(widget.subtitle)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(TelegramPalette.mutedText)
+            }
+
+            Divider()
+                .background(Color.white.opacity(0.12))
+
+            switch widget.kind {
+            case .metricsChart:
+                metricsContentView
+            case .codeRunner:
+                codeRunnerContentView
+            case .kanbanTask:
+                kanbanContentView
+            }
+
+            // Footer with time & checkmarks
+            HStack {
+                Text(currentStatus.isEmpty ? widget.currentStatus : currentStatus)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(TelegramPalette.mutedText)
+
+                Spacer()
+
+                Text(time)
+                    .font(.system(size: 10))
+                    .foregroundStyle(TelegramPalette.mutedText)
+
+                if isOutgoing {
+                    HStack(spacing: -3) {
+                        Image(systemName: "checkmark")
+                        Image(systemName: "checkmark")
+                    }
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(TelegramPalette.skyBlue)
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: 310)
+        .background(
+            LinearGradient(
+                colors: [Color(hex: 0x1A2234), Color(hex: 0x111827)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(widgetAccentColor.opacity(0.35), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.3), radius: 8, y: 4)
+        .onAppear {
+            currentStatus = widget.currentStatus
+            if let tab = widget.selectedMetricTab {
+                activeTab = tab
+            }
+        }
+    }
+
+    private var metricsContentView: some View {
+        VStack(spacing: 10) {
+            // Tabs
+            HStack(spacing: 6) {
+                ForEach(["Latency", "TPS", "Cache"], id: \.self) { tab in
+                    Button {
+                        activeTab = tab
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    } label: {
+                        Text(tab)
+                            .font(.system(size: 11, weight: .semibold))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(activeTab == tab ? widgetAccentColor : Color.white.opacity(0.08))
+                            .foregroundStyle(.white)
+                            .clipShape(Capsule())
+                    }
+                }
+                Spacer()
+            }
+
+            // Animated Bar Graph
+            HStack(alignment: .bottom, spacing: 12) {
+                metricBar(label: "Groq", value: activeTab == "Latency" ? 0.35 : (activeTab == "TPS" ? 0.95 : 0.90), text: activeTab == "Latency" ? "38ms" : (activeTab == "TPS" ? "480" : "94%"))
+                metricBar(label: "Qwen", value: activeTab == "Latency" ? 0.45 : (activeTab == "TPS" ? 0.50 : 0.85), text: activeTab == "Latency" ? "52ms" : (activeTab == "TPS" ? "120" : "88%"))
+                metricBar(label: "GPT-4o", value: activeTab == "Latency" ? 0.70 : (activeTab == "TPS" ? 0.65 : 0.82), text: activeTab == "Latency" ? "140ms" : (activeTab == "TPS" ? "110" : "84%"))
+                metricBar(label: "Sonnet", value: activeTab == "Latency" ? 0.85 : (activeTab == "TPS" ? 0.55 : 0.78), text: activeTab == "Latency" ? "190ms" : (activeTab == "TPS" ? "88" : "79%"))
+            }
+            .frame(height: 80)
+            .padding(.top, 4)
+        }
+    }
+
+    private func metricBar(label: String, value: Double, text: String) -> some View {
+        VStack(spacing: 4) {
+            Text(text)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.white)
+
+            RoundedRectangle(cornerRadius: 3)
+                .fill(
+                    LinearGradient(
+                        colors: [widgetAccentColor, TelegramPalette.skyBlue],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(width: 44, height: max(14, CGFloat(value) * 55))
+                .animation(.spring(response: 0.35, dampingFraction: 0.7), value: value)
+
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(TelegramPalette.mutedText)
+        }
+    }
+
+    private var codeRunnerContentView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(widget.codeSnippet ?? "print(\"Running AIGram Sandbox...\")")
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(Color(hex: 0x93C5FD))
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.black.opacity(0.55))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            Button {
+                runSandboxCode()
+            } label: {
+                HStack(spacing: 6) {
+                    if isRunningCode {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .tint(.white)
+                        Text("Compiling & Executing...")
+                            .font(.system(size: 12, weight: .semibold))
+                    } else {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 10))
+                        Text(consoleOutput == nil ? "Run In Sandbox" : "Re-Run Sandbox")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(TelegramPalette.accentBlue)
+                .foregroundStyle(.white)
+                .clipShape(Capsule())
+            }
+            .disabled(isRunningCode)
+
+            if let out = consoleOutput {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Circle().fill(Color(hex: 0x10B981)).frame(width: 6, height: 6)
+                        Text("Terminal Output (Exit 0)")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(Color(hex: 0x10B981))
+                    }
+                    Text(out)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.9))
+                }
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.black.opacity(0.6))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+        }
+    }
+
+    private func runSandboxCode() {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        isRunningCode = true
+        Task {
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            await MainActor.run {
+                isRunningCode = false
+                consoleOutput = "> [Dispatcher] Thread pool initialized (4 workers)\n> [Bench] 1000 tasks isolated in 18.2ms\n> ✅ Success (0 memory leaks)"
+                currentStatus = "Ran successfully (18ms)"
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            }
+        }
+    }
+
+    private var kanbanContentView: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                ForEach(["To Do", "In Progress", "Done"], id: \.self) { status in
+                    Button {
+                        currentStatus = status
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        aiWorkspace.updateWidgetState(widgetId: widget.id, newStatus: status, in: thread)
+                    } label: {
+                        Text(status)
+                            .font(.system(size: 11, weight: .semibold))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(currentStatus == status ? statusColor(for: status) : Color.white.opacity(0.08))
+                            .foregroundStyle(.white)
+                            .clipShape(Capsule())
+                    }
+                }
+            }
+        }
+    }
+
+    private func statusColor(for status: String) -> Color {
+        switch status {
+        case "Done": return Color(hex: 0x10B981)
+        case "In Progress": return TelegramPalette.accentBlue
+        default: return Color(hex: 0xF59E0B)
+        }
+    }
+
+    private var widgetIcon: String {
+        switch widget.kind {
+        case .metricsChart: return "chart.bar.xaxis"
+        case .codeRunner: return "chevron.left.forwardslash.chevron.right"
+        case .kanbanTask: return "checklist"
+        }
+    }
+
+    private var widgetAccentColor: Color {
+        switch widget.kind {
+        case .metricsChart: return Color(hex: 0x38BDF8)
+        case .codeRunner: return Color(hex: 0x34D399)
+        case .kanbanTask: return Color(hex: 0xA78BFA)
+        }
+    }
+}
+
+// MARK: - Widget Picker Sheet
+private struct WidgetPickerSheet: View {
+    let onSelect: (InteractiveWidget) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Capsule()
+                .fill(Color.white.opacity(0.25))
+                .frame(width: 36, height: 5)
+                .padding(.top, 10)
+
+            HStack {
+                Text("AI Canvas & Mini-Apps")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(.white)
+                Spacer()
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(TelegramPalette.mutedText)
+                }
+            }
+            .padding(.horizontal, 20)
+
+            VStack(spacing: 12) {
+                widgetOptionRow(
+                    title: "Telemetry & Metrics Chart",
+                    desc: "Interactive latency and token throughput charts",
+                    icon: "chart.bar.xaxis",
+                    color: Color(hex: 0x38BDF8)
+                ) {
+                    onSelect(.sampleMetricsWidget())
+                    dismiss()
+                }
+
+                widgetOptionRow(
+                    title: "Code Runner Sandbox",
+                    desc: "Interactive Swift 6 code execution with console",
+                    icon: "chevron.left.forwardslash.chevron.right",
+                    color: Color(hex: 0x34D399)
+                ) {
+                    onSelect(.sampleCodeRunnerWidget())
+                    dismiss()
+                }
+
+                widgetOptionRow(
+                    title: "Sprint Kanban Task Card",
+                    desc: "Interactive task card with real-time status switches",
+                    icon: "checklist",
+                    color: Color(hex: 0xA78BFA)
+                ) {
+                    onSelect(.sampleKanbanWidget())
+                    dismiss()
+                }
+            }
+            .padding(.horizontal, 20)
+
+            Spacer()
+        }
+        .presentationDetents([.height(340)])
+        .background(TelegramPalette.backgroundElevated.ignoresSafeArea())
+    }
+
+    private func widgetOptionRow(title: String, desc: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Circle()
+                    .fill(color.opacity(0.2))
+                    .frame(width: 44, height: 44)
+                    .overlay {
+                        Image(systemName: icon)
+                            .font(.system(size: 20))
+                            .foregroundStyle(color)
+                    }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                    Text(desc)
+                        .font(.system(size: 12))
+                        .foregroundStyle(TelegramPalette.mutedText)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(TelegramPalette.mutedText)
+            }
+            .padding(12)
+            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }

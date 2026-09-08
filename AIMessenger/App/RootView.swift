@@ -138,8 +138,23 @@ struct RootView: View {
                 selectedTab = .chats
                 chatsPath = [.conversation(thread)]
             }
+        } else if args.contains("-openCodePartner") {
+            if let thread = aiWorkspace.threads.first(where: { $0.id == "code-partner" }) {
+                selectedTab = .chats
+                chatsPath = [.conversation(thread)]
+            }
         } else if args.contains("-openSettings") {
             selectedTab = .settings
+        } else if args.contains("-openAIGateway") {
+            selectedTab = .settings
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                settingsPath = [.aiSetup]
+            }
+        } else if args.contains("-openNotifications") {
+            selectedTab = .settings
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                settingsPath = [.notifications]
+            }
         } else if args.contains("-openAppearance") {
             selectedTab = .settings
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
