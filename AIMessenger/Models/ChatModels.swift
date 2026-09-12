@@ -84,6 +84,49 @@ struct ChatThread: Identifiable, Hashable {
     var groupedBackground: Bool
     var avatar: ChatAvatarKind
     var kind: ChatThreadKind
+    var pinnedMessageId: String? = nil
+    var pinnedMessageSnippet: String? = nil
+    var pinnedMessageAuthor: String? = nil
+
+    init(
+        id: String,
+        title: String,
+        headline: String,
+        detail: String? = nil,
+        time: String,
+        badge: String? = nil,
+        badgeBright: Bool = false,
+        isMuted: Bool = false,
+        isPinned: Bool = false,
+        online: Bool = false,
+        revealSide: SwipeRevealSide = .none,
+        deliveryState: DeliveryState = .none,
+        groupedBackground: Bool = false,
+        avatar: ChatAvatarKind,
+        kind: ChatThreadKind,
+        pinnedMessageId: String? = nil,
+        pinnedMessageSnippet: String? = nil,
+        pinnedMessageAuthor: String? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.headline = headline
+        self.detail = detail
+        self.time = time
+        self.badge = badge
+        self.badgeBright = badgeBright
+        self.isMuted = isMuted
+        self.isPinned = isPinned
+        self.online = online
+        self.revealSide = revealSide
+        self.deliveryState = deliveryState
+        self.groupedBackground = groupedBackground
+        self.avatar = avatar
+        self.kind = kind
+        self.pinnedMessageId = pinnedMessageId
+        self.pinnedMessageSnippet = pinnedMessageSnippet
+        self.pinnedMessageAuthor = pinnedMessageAuthor
+    }
 }
 
 struct ChatThreadSummary: Identifiable, Hashable {
@@ -228,6 +271,7 @@ struct ConversationMessage: Identifiable, Hashable, Codable {
         case videoNote(duration: String)
         case sticker(name: String, emoji: String)
         case widget(InteractiveWidget)
+        case document(name: String, size: String, ext: String, localFileName: String?)
     }
 
     let id: String
@@ -241,6 +285,10 @@ struct ConversationMessage: Identifiable, Hashable, Codable {
     var isTranscribing: Bool
     var isTranscribed: Bool
     var localFileName: String?
+    var replyToMessageId: String?
+    var replyToSnippet: String?
+    var replyToAuthor: String?
+    var isPinned: Bool
 
     init(
         id: String,
@@ -253,7 +301,11 @@ struct ConversationMessage: Identifiable, Hashable, Codable {
         transcription: String? = nil,
         isTranscribing: Bool = false,
         isTranscribed: Bool = false,
-        localFileName: String? = nil
+        localFileName: String? = nil,
+        replyToMessageId: String? = nil,
+        replyToSnippet: String? = nil,
+        replyToAuthor: String? = nil,
+        isPinned: Bool = false
     ) {
         self.id = id
         self.side = side
@@ -266,6 +318,33 @@ struct ConversationMessage: Identifiable, Hashable, Codable {
         self.isTranscribing = isTranscribing
         self.isTranscribed = isTranscribed
         self.localFileName = localFileName
+        self.replyToMessageId = replyToMessageId
+        self.replyToSnippet = replyToSnippet
+        self.replyToAuthor = replyToAuthor
+        self.isPinned = isPinned
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, side, payload, time, authorName, authorAvatar, reactions, transcription, isTranscribing, isTranscribed, localFileName, replyToMessageId, replyToSnippet, replyToAuthor, isPinned
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        side = try container.decode(Side.self, forKey: .side)
+        payload = try container.decode(Payload.self, forKey: .payload)
+        time = try container.decode(String.self, forKey: .time)
+        authorName = try container.decodeIfPresent(String.self, forKey: .authorName)
+        authorAvatar = try container.decodeIfPresent(ChatAvatarKind.self, forKey: .authorAvatar)
+        reactions = try container.decodeIfPresent([String].self, forKey: .reactions) ?? []
+        transcription = try container.decodeIfPresent(String.self, forKey: .transcription)
+        isTranscribing = try container.decodeIfPresent(Bool.self, forKey: .isTranscribing) ?? false
+        isTranscribed = try container.decodeIfPresent(Bool.self, forKey: .isTranscribed) ?? false
+        localFileName = try container.decodeIfPresent(String.self, forKey: .localFileName)
+        replyToMessageId = try container.decodeIfPresent(String.self, forKey: .replyToMessageId)
+        replyToSnippet = try container.decodeIfPresent(String.self, forKey: .replyToSnippet)
+        replyToAuthor = try container.decodeIfPresent(String.self, forKey: .replyToAuthor)
+        isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
     }
 
     var isVoice: Bool {
@@ -280,6 +359,11 @@ struct ConversationMessage: Identifiable, Hashable, Codable {
 
     var isWidget: Bool {
         if case .widget = payload { return true }
+        return false
+    }
+
+    var isDocument: Bool {
+        if case .document = payload { return true }
         return false
     }
 
@@ -310,6 +394,43 @@ struct ConversationMessage: Identifiable, Hashable, Codable {
         }
         return nil
     }
+
+    var documentFileName: String? {
+        if let local = localFileName { return local }
+        if case let .document(name, _, _, localFile) = payload {
+            return localFile ?? name
+        }
+        return nil
+    }
+
+    var previewSnippet: String {
+        switch payload {
+        case let .text(txt): return txt
+        case let .emoji(e): return e
+        case let .photo(name, _): return "📷 Photo: \(name)"
+        case let .voice(d): return "🎤 Voice (\(d))"
+        case let .videoNote(d): return "📹 Video Note (\(d))"
+        case let .sticker(_, e): return "Sticker \(e)"
+        case let .widget(w): return "⚡ \(w.title)"
+        case let .document(name, size, _, _): return "📄 \(name) (\(size))"
+        }
+    }
+}
+
+struct VoiceTimbre: Hashable, Codable, Identifiable {
+    let id: String
+    let name: String
+    let subtitle: String
+    let pitch: Float
+    let rate: Float
+    let icon: String
+
+    static let presets: [VoiceTimbre] = [
+        VoiceTimbre(id: "natural", name: "Natural AI", subtitle: "Balanced & conversational", pitch: 1.0, rate: 0.50, icon: "waveform"),
+        VoiceTimbre(id: "deep_tech", name: "Deep Tech", subtitle: "Authoritative senior engineer", pitch: 0.88, rate: 0.51, icon: "cpu"),
+        VoiceTimbre(id: "vibrant_scout", name: "Design Scout", subtitle: "Lively, energetic & creative", pitch: 1.16, rate: 0.53, icon: "sparkles"),
+        VoiceTimbre(id: "soft_mentor", name: "Product Coach", subtitle: "Calm, strategic mentor tone", pitch: 1.05, rate: 0.47, icon: "brain.head.profile")
+    ]
 }
 
 enum PresenceState: Hashable {

@@ -23,6 +23,18 @@ The app is built natively with **SwiftUI** and connects directly to **OpenRouter
 ## 📸 Screenshots
 
 <p align="center">
+  <img src="docs/screenshots/aigram-live-duplex-call.png" width="31%" alt="AIGram Live Duplex Voice Mode with Glowing Audio Orb" />
+  <img src="docs/screenshots/aigram-reply-and-pin.png" width="31%" alt="AIGram Swipe-to-Reply & Pinned Message Header Banner" />
+  <img src="docs/screenshots/aigram-document-reader-modal.png" width="31%" alt="AIGram Syntax-Highlighted Code & Document Reader Modal" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/aigram-document-bubble-and-rag.png" width="31%" alt="AIGram Document Message Bubble & Instant AI Analysis" />
+  <img src="docs/screenshots/aigram-multiagent-mentions.png" width="31%" alt="AIGram Multi-Agent @ Mentions Autocomplete & Turn-Taking" />
+  <img src="docs/screenshots/aigram-document-picker-sheet.png" width="31%" alt="AIGram Document Attachment Picker & Knowledge Base" />
+</p>
+
+<p align="center">
   <img src="docs/screenshots/aigram-video-recording-live.png" width="31%" alt="AIGram Circular Video Note Recording HUD with Live Sensor" />
   <img src="docs/screenshots/aigram-video-note-and-code-sandbox.png" width="31%" alt="AIGram Video Note Round Bubble & Swift 6 Sandbox Widget" />
   <img src="docs/screenshots/aigram-interactive-widgets.png" width="31%" alt="AIGram Interactive AI Widgets (Kanban & Telemetry Chart)" />
@@ -49,6 +61,32 @@ The app is built natively with **SwiftUI** and connects directly to **OpenRouter
 ---
 
 ## 🚀 Key Features
+
+* **💬 Telegram UX Polish (Reactions, Replies, Quotes & Pins)**:
+  * **Floating Quick-Reactions Bar**: Long-press on any message bubble reveals floating reaction emojis (🔥, 👍, ❤️, 🚀, 🤯) with spring animations.
+  * **Tap-to-Toggle Reaction Pills**: Interactive pills attached underneath message bubbles with live tap count toggling.
+  * **Swipe-to-Reply Gesture**: Drag left on any bubble with tactile haptic feedback and revealing reply arrow indicator.
+  * **Live Reply Preview Banner**: Pinned preview banner above the composer displaying original author, quoted text, and quick dismiss (`✕`).
+  * **In-Bubble Quotation Block**: Clean colored accent bar and quote preview with tap-to-scroll navigation back to original message.
+  * **Pinned Message Header Banner**: Pinned header under navigation bar with direct scroll jump and one-tap unpinning.
+  * **Enriched Context Menu**: Reply, Pin/Unpin, Copy, Forward, and Delete actions with native iOS context menu styling.
+
+* **🎙️ Live Duplex AI Voice Mode & 3D Glowing Audio Orb**:
+  * **Full-Screen Duplex Conversational Call**: Continuous real-time voice exchange loop with state machine (`Idle`, `Listening`, `Thinking`, `Speaking`).
+  * **Chromatic Glowing Audio Orb**: Concentric acoustic rings and fluid audio-reactive scaling driven by hardware decibel levels.
+  * **Persona Voice Timbre Modulation**: Selectable voice timbres (*Natural AI*, *Deep Tech*, *Design Scout*, *Product Coach*) with dynamically adjusted speech rate and pitch.
+  * **Duplex State Badge & Spoken Subtitle Card**: Live color-coded status badges and real-time transcription subtitle overlay.
+  * **Interactive Quick Prompt Chips**: One-tap test chips (*Review Swift 6 Concurrency*, *What is in Q3 Roadmap?*) to trigger instant voice answers.
+
+* **👥 Multi-Agent Brainstorming & Turn-Taking**:
+  * **Keyboard `@` Mention Autocomplete**: Horizontal frosted carousel appearing above composer when typing `@` to quickly mention specialists (`@CodePartner`, `@DesignScout`, `@ProductCoach`).
+  * **Autonomous Turn-Taking Discussion**: Personas in group chats (e.g. *Build Board*, *Seminar Circle*) or multi-agent mentions respond sequentially with individual typing bubbles and tactile haptic feedback.
+
+* **📄 Document RAG & Native Code Reader**:
+  * **Document Attachment Picker**: Supports `.swift`, `.json`, `.pdf`, `.txt`, `.md` files directly stored in `Documents/AIGramMedia/`.
+  * **Document Message Bubble**: Telegram-style document card displaying color-coded extension icon, file size, and quick action buttons.
+  * **Fullscreen Syntax-Highlighted Code Reader**: Dark-themed modal with line numbers, keyword highlighting, clipboard copying, and character statistics.
+  * **Instant RAG Analysis Pipeline**: Dedicated "Analyze with AI" button on any document bubble injecting content into the LLM context for instant architectural breakdowns.
 
 * **🎥 Hardware Circular Video Notes («Кружочки»)**:
   * Native `AVCaptureSession` camera pipeline with front-facing camera integration.

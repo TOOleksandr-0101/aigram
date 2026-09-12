@@ -123,6 +123,138 @@ final class MediaStorageService {
                 }
             }
         }
+
+        seedPresetDocumentsIfNeeded()
+    }
+
+    private func seedPresetDocumentsIfNeeded() {
+        let swiftDoc = """
+        // AIGram Native Concurrency Architecture Specification
+        // Swift 6 Strict Concurrency & Actor Isolation
+
+        import Foundation
+        import SwiftUI
+
+        @globalActor
+        actor AIGramCoreActor {
+            static let shared = AIGramCoreActor()
+        }
+
+        protocol MessageStreamDelegate: Sendable {
+            func didStreamChunk(_ token: String) async
+            func didCompleteStreaming(totalTokens: Int, latencyMs: Double) async
+        }
+
+        final class LLMOrchestrator: @unchecked Sendable {
+            private let session = URLSession.shared
+
+            func dispatchAgentDiscussion(prompt: String, agents: [String]) async -> [String: String] {
+                // Multi-agent consensus pipeline with turn-taking arbitration
+                print("[Orchestrator] Dispatching multi-agent turn sequence for prompt: \\(prompt)")
+                return [:]
+            }
+        }
+        """
+
+        let roadmapDoc = """
+        # AIGram Product Roadmap (2026 Q3 - Q4)
+
+        ## Core Value Proposition
+        AIGram combines the speed and responsiveness of native iOS messaging with an autonomous multi-agent intelligence layer.
+
+        ### Key Milestones
+        1. **Milestone 1: Native UX Parity**
+           - Floating emoji reactions with tactile feedback
+           - Swipe-to-reply gesture with quote attachment preview
+           - Pinned message banner with smooth viewport navigation
+        2. **Milestone 2: Live Duplex Audio AI Mode**
+           - Full-duplex voice streaming with audio decibel visualizer orb
+           - Persona-tailored pitch and cadence modulation
+        3. **Milestone 3: Autonomous Multi-Agent Brainstorming**
+           - @mention autocomplete for direct & group interactions
+           - Turn-taking discussion sequencing across AI specialists
+        4. **Milestone 4: Local RAG Knowledge Base**
+           - File attachment support (.swift, .json, .md, .pdf)
+           - In-app syntax-highlighted code & text viewer
+           - Context injection into LLM reasoning engine
+        """
+
+        let jsonDoc = """
+        {
+          "project": "AIGram",
+          "version": "2.4.0",
+          "metrics": {
+            "cold_start_ms": 142.5,
+            "frame_rate_fps": 120.0,
+            "audio_latency_ms": 18.2,
+            "memory_footprint_mb": 46.8,
+            "llm_time_to_first_token_ms": 285.0,
+            "average_tokens_per_second": 84.6
+          },
+          "status": "Healthy",
+          "build_environment": "Release_Swift6"
+        }
+        """
+
+        let paperDoc = """
+        AIGram On-Device & Gateway Neural Inference
+        Technical Research Brief
+
+        Abstract:
+        We present an optimized hybrid dispatch pipeline for mobile agentic workflows.
+        By combining low-latency on-device token estimation with dynamic provider routing
+        (OpenRouter, Groq, Ollama), client perceived latency is reduced by up to 64%.
+        Key mechanisms include speculative decoding, KV-cache prefix sharing across
+        group personas, and streaming audio synthesis via AVSpeechSynthesizer.
+        """
+
+        let docs = [
+            ("Architecture_Spec.swift", swiftDoc),
+            ("Product_Roadmap.md", roadmapDoc),
+            ("Telemetry_Metrics.json", jsonDoc),
+            ("ML_Inference_Paper.txt", paperDoc)
+        ]
+
+        for (filename, content) in docs {
+            if !fileExists(filename: filename) {
+                _ = saveDocument(text: content, filename: filename)
+            }
+        }
+    }
+
+    @discardableResult
+    func saveDocument(data: Data, filename: String) -> URL? {
+        let destination = fileURL(for: filename)
+        do {
+            try data.write(to: destination, options: .atomic)
+            return destination
+        } catch {
+            print("[MediaStorageService] Error saving document: \(error)")
+            return nil
+        }
+    }
+
+    @discardableResult
+    func saveDocument(text: String, filename: String) -> URL? {
+        guard let data = text.data(using: .utf8) else { return nil }
+        return saveDocument(data: data, filename: filename)
+    }
+
+    func readDocumentText(filename: String) -> String? {
+        let url = fileURL(for: filename)
+        if let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .utf8) {
+            return text
+        }
+        return nil
+    }
+
+    func samplePresetDocuments() -> [(name: String, size: String, ext: String, summary: String)] {
+        return [
+            ("Architecture_Spec.swift", "1.4 KB", "swift", "Swift 6 strict concurrency actor specification"),
+            ("Product_Roadmap.md", "2.1 KB", "md", "AIGram Q3-Q4 features and milestones plan"),
+            ("Telemetry_Metrics.json", "890 B", "json", "Real-time latency, fps and tokens telemetry"),
+            ("ML_Inference_Paper.txt", "1.8 KB", "txt", "Mobile on-device LLM inference technical brief")
+        ]
     }
 
     private func generateArtwork(for title: String) -> UIImage? {

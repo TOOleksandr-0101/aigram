@@ -252,6 +252,11 @@ struct OpenRouterService {
                     role: message.side == .incoming ? "assistant" : "user",
                     content: contentPrefix + "[Interactive Widget: \(widget.title) - \(widget.currentStatus)]"
                 )
+            case let .document(name, size, ext, _):
+                return OpenRouterChatMessage(
+                    role: message.side == .incoming ? "assistant" : "user",
+                    content: contentPrefix + "[Attached Document: \(name) (\(ext.uppercased()), \(size))]"
+                )
             }
         }
 

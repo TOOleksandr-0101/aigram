@@ -20,6 +20,10 @@ struct ChatConversationScreen: View {
     @State private var selectedMediaName: String?
     @State private var isStickerSheetPresented = false
     @State private var showWidgetPickerSheet = false
+    @State private var showDocumentPickerSheet = false
+    @State private var readingDocumentItem: DocumentViewItem?
+    @State private var replyingToMessage: ConversationMessage?
+    @State private var targetScrollMessageId: String?
     @State private var inputMediaMode: InputMediaMode = .voice
     @State private var isRecordingVoice = false
     @State private var isRecordingVideoNote = false
@@ -67,6 +71,26 @@ struct ChatConversationScreen: View {
                             },
                             onOpenMedia: { mediaName in
                                 selectedMediaName = mediaName
+                            },
+                            onReply: { msg in
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    replyingToMessage = msg
+                                }
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            },
+                            onPin: { msg in
+                                aiWorkspace.togglePinMessage(messageId: msg.id, in: thread)
+                                messages = aiWorkspace.messages(for: thread)
+                            },
+                            onScrollTo: { msgId in
+                                targetScrollMessageId = msgId
+                            },
+                            onOpenDocument: { name, ext in
+                                readingDocumentItem = DocumentViewItem(name: name, ext: ext)
+                            },
+                            onAnalyzeDocument: { msg in
+                                aiWorkspace.analyzeDocument(message: msg, in: thread)
+                                messages = aiWorkspace.messages(for: thread)
                             }
                         )
                         .id(message.id)
@@ -88,12 +112,31 @@ struct ChatConversationScreen: View {
                     }
                 }
             }
+            .onChange(of: targetScrollMessageId) { id in
+                guard let id = id else { return }
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    proxy.scrollTo(id, anchor: .center)
+                }
+            }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
-            topBar
+            VStack(spacing: 0) {
+                topBar
+                if let pinned = currentPinnedMessage {
+                    pinnedHeaderBanner(message: pinned)
+                }
+            }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            inputBar
+            VStack(spacing: 0) {
+                if isMentionsPopupVisible {
+                    mentionsAutocompleteRow
+                }
+                if let replyMsg = replyingToMessage {
+                    replyPreviewBanner(replyMsg)
+                }
+                inputBar
+            }
         }
         .scrollContentBackground(.hidden)
         .background(chatWallpaperView.ignoresSafeArea())
@@ -183,6 +226,42 @@ struct ChatConversationScreen: View {
                     messages = aiWorkspace.messages(for: thread)
                 }
             }
+            if ProcessInfo.processInfo.arguments.contains("-testPin") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    if let first = messages.first {
+                        aiWorkspace.togglePinMessage(messageId: first.id, in: thread)
+                        messages = aiWorkspace.messages(for: thread)
+                    }
+                }
+            }
+            if ProcessInfo.processInfo.arguments.contains("-testReply") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    if let first = messages.first {
+                        replyingToMessage = first
+                    }
+                }
+            }
+            if ProcessInfo.processInfo.arguments.contains("-testSendDoc") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    aiWorkspace.sendDocument(name: "Architecture_Spec.swift", size: "1.4 KB", ext: "swift", localFileName: "Architecture_Spec.swift", to: thread)
+                    messages = aiWorkspace.messages(for: thread)
+                }
+            }
+            if ProcessInfo.processInfo.arguments.contains("-testDocPicker") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    showDocumentPickerSheet = true
+                }
+            }
+            if ProcessInfo.processInfo.arguments.contains("-testDocViewer") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    readingDocumentItem = DocumentViewItem(name: "Architecture_Spec.swift", ext: "swift")
+                }
+            }
+            if ProcessInfo.processInfo.arguments.contains("-testMentions") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    draft = "@"
+                }
+            }
         }
         .sheet(isPresented: $showAttachmentSheet) {
             AttachmentPickerSheet(
@@ -196,6 +275,21 @@ struct ChatConversationScreen: View {
                 },
                 onOpenWidgetPicker: {
                     showWidgetPickerSheet = true
+                },
+                onOpenDocumentPicker: {
+                    showDocumentPickerSheet = true
+                }
+            )
+        }
+        .sheet(isPresented: $showDocumentPickerSheet) {
+            DocumentPickerSheet(
+                onSelectPreset: { name, size, ext in
+                    aiWorkspace.sendDocument(name: name, size: size, ext: ext, localFileName: name, to: thread)
+                    messages = aiWorkspace.messages(for: thread)
+                },
+                onBrowseDeviceFiles: {
+                    aiWorkspace.sendDocument(name: "Architecture_Spec.swift", size: "1.4 KB", ext: "swift", localFileName: "Architecture_Spec.swift", to: thread)
+                    messages = aiWorkspace.messages(for: thread)
                 }
             )
         }
@@ -204,6 +298,9 @@ struct ChatConversationScreen: View {
                 aiWorkspace.sendInteractiveWidget(widget, to: thread)
                 messages = aiWorkspace.messages(for: thread)
             }
+        }
+        .fullScreenCover(item: $readingDocumentItem) { item in
+            DocumentReaderModal(item: item)
         }
         .fullScreenCover(item: Binding(
             get: { selectedMediaName.map { MediaItem(name: $0) } },
@@ -224,6 +321,170 @@ struct ChatConversationScreen: View {
                 aiWorkspace.sendSticker(name: name, emoji: emoji, to: thread)
                 messages = aiWorkspace.messages(for: thread)
             }
+        }
+    }
+
+    private var currentPinnedMessage: ConversationMessage? {
+        if let id = thread.pinnedMessageId, let msg = messages.first(where: { $0.id == id }) {
+            return msg
+        }
+        return messages.first(where: { $0.isPinned })
+    }
+
+    private func pinnedHeaderBanner(message: ConversationMessage) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "pin.fill")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(TelegramPalette.skyBlue)
+                .rotationEffect(.degrees(45))
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Pinned Message")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(TelegramPalette.skyBlue)
+
+                Text(message.previewSnippet)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Button {
+                aiWorkspace.unpinMessage(in: thread)
+                messages = aiWorkspace.messages(for: thread)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(TelegramPalette.mutedText)
+                    .padding(6)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(TelegramPalette.backgroundElevated.opacity(0.96))
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(TelegramPalette.separator)
+                .frame(height: 0.5)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            targetScrollMessageId = message.id
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
+    }
+
+    private func replyPreviewBanner(_ replyMsg: ConversationMessage) -> some View {
+        HStack(spacing: 10) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(TelegramPalette.skyBlue)
+                .frame(width: 3)
+                .frame(maxHeight: 34)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrowshape.turn.up.left.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(TelegramPalette.skyBlue)
+                    Text(replyMsg.authorName ?? (replyMsg.side == .outgoing ? "You" : thread.title))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(TelegramPalette.skyBlue)
+                }
+
+                Text(replyMsg.previewSnippet)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Button {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                    replyingToMessage = nil
+                }
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 18))
+                    .foregroundStyle(TelegramPalette.mutedText)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
+        .background(TelegramPalette.backgroundElevated)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(TelegramPalette.separator)
+                .frame(height: 0.5)
+        }
+    }
+
+    private var isMentionsPopupVisible: Bool {
+        draft.contains("@") && !mentionableAgents.isEmpty
+    }
+
+    private var mentionableAgents: [(name: String, handle: String, avatar: ChatAvatarKind)] {
+        if thread.isGroup {
+            return thread.members.map { (name: $0.name, handle: $0.username.replacingOccurrences(of: "@", with: ""), avatar: $0.avatar) }
+        } else {
+            return [
+                (name: "Code Partner", handle: "CodePartner", avatar: .codeAgents),
+                (name: "Design Scout", handle: "DesignScout", avatar: .uxCopilot),
+                (name: "Product Coach", handle: "ProductCoach", avatar: .visionCluster),
+                (name: "Research Desk", handle: "ResearchDesk", avatar: .researchBot)
+            ]
+        }
+    }
+
+    private var mentionsAutocompleteRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(mentionableAgents, id: \.handle) { agent in
+                    Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        insertMention(agent.handle)
+                    } label: {
+                        HStack(spacing: 6) {
+                            AvatarView(kind: agent.avatar, showsOnlineDot: false)
+                                .frame(width: 22, height: 22)
+                                .scaleEffect(0.6)
+
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(agent.name)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                Text("@\(agent.handle)")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(TelegramPalette.skyBlue)
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.white.opacity(0.12), in: Capsule())
+                        .overlay(Capsule().stroke(Color.white.opacity(0.18), lineWidth: 0.5))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+        }
+        .background(TelegramPalette.backgroundElevated)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(TelegramPalette.separator)
+                .frame(height: 0.5)
+        }
+    }
+
+    private func insertMention(_ handle: String) {
+        if let atIndex = draft.lastIndex(of: "@") {
+            let prefix = String(draft[..<atIndex])
+            draft = "\(prefix)@\(handle) "
+        } else {
+            draft += "@\(handle) "
         }
     }
 
@@ -608,11 +869,17 @@ struct ChatConversationScreen: View {
         isSending = true
         let historyBeforeRequest = messages
 
+        let replyingMessageSnapshot = replyingToMessage
+        replyingToMessage = nil
+
         let outgoingMessage = ConversationMessage(
             id: UUID().uuidString,
             side: .outgoing,
             payload: .text(trimmedDraft),
-            time: currentTimeLabel
+            time: currentTimeLabel,
+            replyToMessageId: replyingMessageSnapshot?.id,
+            replyToSnippet: replyingMessageSnapshot?.previewSnippet,
+            replyToAuthor: replyingMessageSnapshot?.authorName ?? (replyingMessageSnapshot?.side == .outgoing ? "You" : thread.title)
         )
         messages.append(outgoingMessage)
         persistMessages()
@@ -633,10 +900,10 @@ struct ChatConversationScreen: View {
             }
 
             let incoming = incomingMessages(from: reply)
-            if thread.isGroup && incoming.count > 1 {
+            if incoming.count > 1 {
                 for (idx, msg) in incoming.enumerated() {
                     currentTypingBotName = msg.authorName ?? "Agent"
-                    try? await Task.sleep(nanoseconds: idx == 0 ? 1_000_000_000 : 1_500_000_000)
+                    try? await Task.sleep(nanoseconds: idx == 0 ? 800_000_000 : 1_300_000_000)
                     messages.append(msg)
                     persistMessages()
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -645,7 +912,7 @@ struct ChatConversationScreen: View {
                 if let author = incoming.first?.authorName {
                     currentTypingBotName = author
                 }
-                try? await Task.sleep(nanoseconds: 750_000_000)
+                try? await Task.sleep(nanoseconds: 600_000_000)
                 messages.append(contentsOf: incoming)
                 persistMessages()
             }
@@ -678,6 +945,29 @@ struct ChatConversationScreen: View {
     }
 
     private func offlineFallbackReply(for draft: String) -> String {
+        let lower = draft.lowercased()
+        if lower.contains("@code") || lower.contains("@design") || lower.contains("@product") || lower.contains("@study") || lower.contains("@research") {
+            var lines: [String] = []
+            if lower.contains("@code") {
+                lines.append("[Code Partner] Изучил код и структуру: реализация чистая, масштабируемая, O(1) и без блокировок главного потока.")
+            }
+            if lower.contains("@design") {
+                lines.append("[Design Scout] Визуальная часть на высоте: плавные пружинные анимации, неоновые акценты AIGram и идеальные отступы.")
+            }
+            if lower.contains("@product") {
+                lines.append("[Product Coach] Продуктовый UX отлично выверен: пользователь решает задачу за 1-2 клика прямо из контекста.")
+            }
+            if lower.contains("@study") {
+                lines.append("[Study Room] Структурировал основные тезисы в понятный конспект с ключевыми выводами.")
+            }
+            if lower.contains("@research") {
+                lines.append("[Research Desk] Сверил с отраслевыми стандартами и лучшими практиками — решение полностью готово к продакшну.")
+            }
+            if lines.isEmpty == false {
+                return lines.joined(separator: "\n")
+            }
+        }
+
         switch thread.id {
         case "seminar-circle":
             return """
@@ -715,24 +1005,22 @@ struct ChatConversationScreen: View {
     private func incomingMessages(from reply: String) -> [ConversationMessage] {
         let trimmedReply = reply.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        if thread.isGroup {
-            let parsed = parseGroupReply(trimmedReply)
-            if parsed.isEmpty == false {
-                return parsed
-            }
+        let parsed = parseGroupReply(trimmedReply)
+        if parsed.isEmpty == false {
+            return parsed
+        }
 
-            if let defaultMember = thread.members.first {
-                return [
-                    ConversationMessage(
-                        id: UUID().uuidString,
-                        side: .incoming,
-                        payload: .text(trimmedReply),
-                        time: currentTimeLabel,
-                        authorName: defaultMember.name,
-                        authorAvatar: defaultMember.avatar
-                    )
-                ]
-            }
+        if thread.isGroup, let defaultMember = thread.members.first {
+            return [
+                ConversationMessage(
+                    id: UUID().uuidString,
+                    side: .incoming,
+                    payload: .text(trimmedReply),
+                    time: currentTimeLabel,
+                    authorName: defaultMember.name,
+                    authorAvatar: defaultMember.avatar
+                )
+            ]
         }
 
         return [
@@ -751,7 +1039,7 @@ struct ChatConversationScreen: View {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { $0.isEmpty == false }
 
-        return lines.compactMap { line in
+        return lines.compactMap { (line: String) -> ConversationMessage? in
             guard line.hasPrefix("["),
                   let closingIndex = line.firstIndex(of: "]") else {
                 return nil
@@ -765,7 +1053,9 @@ struct ChatConversationScreen: View {
 
             let member = thread.members.first { candidate in
                 candidate.name.caseInsensitiveCompare(name) == .orderedSame
-            } ?? thread.members.first
+            }
+
+            let avatar = member?.avatar ?? avatarKind(for: name)
 
             return ConversationMessage(
                 id: UUID().uuidString,
@@ -773,9 +1063,19 @@ struct ChatConversationScreen: View {
                 payload: .text(content),
                 time: currentTimeLabel,
                 authorName: member?.name ?? name,
-                authorAvatar: member?.avatar
+                authorAvatar: avatar
             )
         }
+    }
+
+    private func avatarKind(for name: String) -> ChatAvatarKind {
+        let lower = name.lowercased()
+        if lower.contains("code") { return .codeAgents }
+        if lower.contains("design") || lower.contains("ux") { return .uxCopilot }
+        if lower.contains("research") { return .researchBot }
+        if lower.contains("study") || lower.contains("tutor") { return .tutor }
+        if lower.contains("vision") || lower.contains("art") { return .visionCluster }
+        return .uxCopilot
     }
 }
 
@@ -787,123 +1087,259 @@ private struct MessageBubble: View {
     let onDelete: () -> Void
     let onTranscribe: () -> Void
     let onOpenMedia: (String) -> Void
+    var onReply: ((ConversationMessage) -> Void)? = nil
+    var onPin: ((ConversationMessage) -> Void)? = nil
+    var onScrollTo: ((String) -> Void)? = nil
+    var onOpenDocument: ((String, String) -> Void)? = nil
+    var onAnalyzeDocument: ((ConversationMessage) -> Void)? = nil
+
+    @State private var dragOffset: CGFloat = 0.0
+    @State private var hasTriggeredReplyHaptic = false
+    @State private var showFloatingReactions = false
 
     var body: some View {
-        HStack {
-            if message.side == .outgoing {
-                Spacer(minLength: 40)
-            }
-
-            switch message.payload {
-            case let .videoNote(duration):
-                VideoNoteBubble(
-                    duration: duration,
-                    time: message.time,
-                    isOutgoing: message.side == .outgoing,
-                    localFileName: message.localFileName,
-                    transcription: message.transcription,
-                    isTranscribing: message.isTranscribing,
-                    isTranscribed: message.isTranscribed,
-                    onTranscribe: onTranscribe,
-                    onReact: onReact,
-                    onDelete: onDelete
-                )
-            case let .widget(widget):
-                InteractiveWidgetBubble(
-                    widget: widget,
-                    time: message.time,
-                    isOutgoing: message.side == .outgoing,
-                    thread: thread
-                )
-            case let .sticker(name, emoji):
-                StickerBubble(
-                    name: name,
-                    emoji: emoji,
-                    time: message.time,
-                    isOutgoing: message.side == .outgoing,
-                    onReact: onReact,
-                    onDelete: onDelete
-                )
-            case let .photo(name, size):
-                PhotoMessageBubble(
-                    name: name,
-                    size: size,
-                    time: message.time,
-                    isOutgoing: message.side == .outgoing,
-                    localFileName: message.localFileName,
-                    onTap: { onOpenMedia(message.localFileName ?? name) }
-                )
-                .contextMenu {
-                    Button {
-                        onReact("❤️")
-                    } label: {
-                        Label("Heart ❤️", systemImage: "heart")
+        VStack(alignment: message.side == .outgoing ? .trailing : .leading, spacing: 4) {
+            if showFloatingReactions {
+                FloatingReactionsBar { emoji in
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                        showFloatingReactions = false
                     }
-                    Button {
-                        onReact("🔥")
-                    } label: {
-                        Label("Fire 🔥", systemImage: "flame")
-                    }
-                    Divider()
-                    Button {
-                        onOpenMedia(name)
-                    } label: {
-                        Label("View Fullscreen", systemImage: "arrow.up.left.and.arrow.down.right")
-                    }
-                    Button(role: .destructive) {
-                        onDelete()
-                    } label: {
-                        Label("Delete", systemImage: "trash")
-                    }
+                    onReact(emoji)
                 }
-            default:
-                content
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .padding(.trailing, message.side == .outgoing ? 5 : 0)
-                    .padding(.leading, message.side == .incoming ? 5 : 0)
-                    .background(backgroundColor, in: TelegramBubbleShape(isOutgoing: message.side == .outgoing))
-                    .contextMenu {
-                        Button {
-                            onReact("👍")
-                        } label: {
-                            Label("Like 👍", systemImage: "hand.thumbsup")
-                        }
-                        Button {
-                            onReact("❤️")
-                        } label: {
-                            Label("Heart ❤️", systemImage: "heart")
-                        }
-                        Button {
-                            onReact("🔥")
-                        } label: {
-                            Label("Fire 🔥", systemImage: "flame")
-                        }
-                        Button {
-                            onReact("🎉")
-                        } label: {
-                            Label("Party 🎉", systemImage: "party.popper")
-                        }
-                        Divider()
-                        Button {
-                            if case let .text(txt) = message.payload {
-                                UIPasteboard.general.string = txt
-                            }
-                        } label: {
-                            Label("Copy Text", systemImage: "doc.on.doc")
-                        }
-                        Button(role: .destructive) {
-                            onDelete()
-                        } label: {
-                            Label("Delete Message", systemImage: "trash")
-                        }
-                    }
+                .transition(.scale(scale: 0.85).combined(with: .opacity))
             }
 
-            if message.side == .incoming {
-                Spacer(minLength: 40)
+            HStack(spacing: 8) {
+                if message.side == .outgoing {
+                    Spacer(minLength: 32)
+                }
+
+                bubbleBody
+                    .offset(x: dragOffset)
+                    .gesture(
+                        DragGesture(minimumDistance: 12)
+                            .onChanged { value in
+                                if value.translation.width < 0 {
+                                    let damped = max(-70.0, value.translation.width * 0.7)
+                                    dragOffset = damped
+                                    if damped < -45 && !hasTriggeredReplyHaptic {
+                                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                        hasTriggeredReplyHaptic = true
+                                    }
+                                }
+                            }
+                            .onEnded { _ in
+                                if dragOffset < -45 {
+                                    onReply?(message)
+                                }
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                                    dragOffset = 0
+                                    hasTriggeredReplyHaptic = false
+                                }
+                            }
+                    )
+
+                if dragOffset < -15 {
+                    Image(systemName: "arrowshape.turn.up.left.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 28, height: 28)
+                        .background(TelegramPalette.skyBlue, in: Circle())
+                        .scaleEffect(min(1.0, abs(dragOffset) / 45.0))
+                        .opacity(min(1.0, abs(dragOffset) / 25.0))
+                }
+
+                if message.side == .incoming {
+                    Spacer(minLength: 32)
+                }
+            }
+
+            if !message.reactions.isEmpty {
+                reactionPillsRow
             }
         }
+    }
+
+    @ViewBuilder
+    private var bubbleBody: some View {
+        switch message.payload {
+        case let .document(name, size, ext, _):
+            DocumentMessageBubble(
+                name: name,
+                size: size,
+                ext: ext,
+                time: message.time,
+                isOutgoing: message.side == .outgoing,
+                onOpen: {
+                    onOpenDocument?(name, ext)
+                },
+                onAnalyze: {
+                    onAnalyzeDocument?(message)
+                }
+            )
+            .contextMenu {
+                contextMenuContent
+            }
+        case let .videoNote(duration):
+            VideoNoteBubble(
+                duration: duration,
+                time: message.time,
+                isOutgoing: message.side == .outgoing,
+                localFileName: message.localFileName,
+                transcription: message.transcription,
+                isTranscribing: message.isTranscribing,
+                isTranscribed: message.isTranscribed,
+                onTranscribe: onTranscribe,
+                onReact: onReact,
+                onDelete: onDelete
+            )
+            .contextMenu {
+                contextMenuContent
+            }
+        case let .widget(widget):
+            InteractiveWidgetBubble(
+                widget: widget,
+                time: message.time,
+                isOutgoing: message.side == .outgoing,
+                thread: thread
+            )
+            .contextMenu {
+                contextMenuContent
+            }
+        case let .sticker(name, emoji):
+            StickerBubble(
+                name: name,
+                emoji: emoji,
+                time: message.time,
+                isOutgoing: message.side == .outgoing,
+                onReact: onReact,
+                onDelete: onDelete
+            )
+            .contextMenu {
+                contextMenuContent
+            }
+        case let .photo(name, size):
+            PhotoMessageBubble(
+                name: name,
+                size: size,
+                time: message.time,
+                isOutgoing: message.side == .outgoing,
+                localFileName: message.localFileName,
+                onTap: { onOpenMedia(message.localFileName ?? name) }
+            )
+            .contextMenu {
+                contextMenuContent
+            }
+        default:
+            content
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .padding(.trailing, message.side == .outgoing ? 5 : 0)
+                .padding(.leading, message.side == .incoming ? 5 : 0)
+                .background(backgroundColor, in: TelegramBubbleShape(isOutgoing: message.side == .outgoing))
+                .contextMenu {
+                    contextMenuContent
+                }
+        }
+    }
+
+    @ViewBuilder
+    private var contextMenuContent: some View {
+        Section {
+            Button {
+                onReply?(message)
+            } label: {
+                Label("Reply", systemImage: "arrowshape.turn.up.left")
+            }
+
+            Button {
+                onPin?(message)
+            } label: {
+                Label(message.isPinned ? "Unpin Message" : "Pin Message", systemImage: message.isPinned ? "pin.slash" : "pin")
+            }
+
+            Button {
+                withAnimation {
+                    showFloatingReactions = true
+                }
+            } label: {
+                Label("React...", systemImage: "face.smiling")
+            }
+        }
+
+        Section {
+            Button {
+                UIPasteboard.general.string = message.previewSnippet
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            } label: {
+                Label("Copy", systemImage: "doc.on.doc")
+            }
+
+            if message.isDocument {
+                Button {
+                    onAnalyzeDocument?(message)
+                } label: {
+                    Label("Analyze with AI 🧠", systemImage: "brain.head.profile")
+                }
+            }
+        }
+
+        Section {
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+
+    private var uniqueReactionCounts: [(emoji: String, count: Int)] {
+        var counts: [String: Int] = [:]
+        for r in message.reactions {
+            counts[r, default: 0] += 1
+        }
+        return counts.map { (emoji: $0.key, count: $0.value) }
+    }
+
+    private var reactionPillsRow: some View {
+        HStack(spacing: 4) {
+            ForEach(uniqueReactionCounts, id: \.emoji) { item in
+                Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    onReact(item.emoji)
+                } label: {
+                    HStack(spacing: 3) {
+                        Text(item.emoji)
+                            .font(.system(size: 12))
+                        if item.count > 1 {
+                            Text("\(item.count)")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.9))
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.white.opacity(0.18), in: Capsule())
+                    .overlay(Capsule().stroke(Color.white.opacity(0.2), lineWidth: 0.5))
+                }
+                .buttonStyle(.plain)
+            }
+
+            Button {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                    showFloatingReactions.toggle()
+                }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .frame(width: 20, height: 20)
+                    .background(Color.white.opacity(0.12), in: Circle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.top, 2)
+        .padding(message.side == .outgoing ? .trailing : .leading, 8)
     }
 
     @ViewBuilder
@@ -915,20 +1351,37 @@ private struct MessageBubble: View {
                     .foregroundStyle(authorTint)
             }
 
-            payloadContent
-
-            if message.reactions.isEmpty == false {
-                HStack(spacing: 4) {
-                    ForEach(message.reactions, id: \.self) { reaction in
-                        Text(reaction)
-                            .font(.system(size: 13))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.white.opacity(0.18), in: Capsule())
+            // Quoted Reply Preview Header inside bubble
+            if let snippet = message.replyToSnippet {
+                Button {
+                    if let replyId = message.replyToMessageId {
+                        onScrollTo?(replyId)
                     }
+                } label: {
+                    HStack(spacing: 8) {
+                        RoundedRectangle(cornerRadius: 1.5)
+                            .fill(TelegramPalette.skyBlue)
+                            .frame(width: 2.5)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(message.replyToAuthor ?? "Reply")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(TelegramPalette.skyBlue)
+
+                            Text(snippet)
+                                .font(.system(size: 12))
+                                .foregroundStyle(.white.opacity(0.85))
+                                .lineLimit(1)
+                        }
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
-                .padding(.top, 2)
+                .buttonStyle(.plain)
             }
+
+            payloadContent
         }
     }
 
@@ -1021,7 +1474,7 @@ private struct MessageBubble: View {
                 }
                 .foregroundStyle(foregroundColor)
             }
-        case .videoNote, .sticker, .widget:
+        case .videoNote, .sticker, .widget, .document:
             EmptyView()
         }
     }
@@ -2212,6 +2665,7 @@ private struct AttachmentPickerSheet: View {
     let onSendPhoto: (String, String) -> Void
     let onSendFile: (String, String) -> Void
     var onOpenWidgetPicker: (() -> Void)? = nil
+    var onOpenDocumentPicker: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedPhotoPickerItem: PhotosPickerItem?
@@ -2330,6 +2784,16 @@ private struct AttachmentPickerSheet: View {
                             dismiss()
                         } label: {
                             attachmentActionItem(title: "File", icon: "doc.fill", color: Color(hex: 0x30B0C7))
+                        }
+
+                        Button {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            dismiss()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                onOpenDocumentPicker?()
+                            }
+                        } label: {
+                            attachmentActionItem(title: "Document", icon: "doc.text.fill", color: Color(hex: 0xFF9500))
                         }
 
                         Button {
@@ -2856,5 +3320,352 @@ private struct WidgetPickerSheet: View {
             .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Floating Reactions Bar
+struct FloatingReactionsBar: View {
+    let onSelect: (String) -> Void
+    private let emojis = ["🔥", "👍", "❤️", "🚀", "🤯", "🎉", "👏"]
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(emojis, id: \.self) { emoji in
+                Button {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    onSelect(emoji)
+                } label: {
+                    Text(emoji)
+                        .font(.system(size: 22))
+                        .padding(4)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color(hex: 0x1E2430).opacity(0.96), in: Capsule())
+        .overlay(
+            Capsule()
+                .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
+        )
+        .shadow(color: Color.black.opacity(0.4), radius: 12, y: 6)
+    }
+}
+
+// MARK: - Document Message Bubble
+struct DocumentMessageBubble: View {
+    let name: String
+    let size: String
+    let ext: String
+    let time: String
+    let isOutgoing: Bool
+    let onOpen: () -> Void
+    let onAnalyze: () -> Void
+
+    var body: some View {
+        VStack(alignment: isOutgoing ? .trailing : .leading, spacing: 6) {
+            HStack(spacing: 12) {
+                // File Type Badge Icon
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(extColor.opacity(0.2))
+                        .frame(width: 44, height: 44)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(extColor.opacity(0.4), lineWidth: 1)
+                        )
+
+                    Image(systemName: extIcon)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(extColor)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(name)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+
+                    HStack(spacing: 6) {
+                        Text(size)
+                            .font(.system(size: 12))
+                            .foregroundStyle(TelegramPalette.mutedText)
+
+                        Text("•")
+                            .font(.system(size: 10))
+                            .foregroundStyle(TelegramPalette.mutedText)
+
+                        Text(ext.uppercased())
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(extColor)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(extColor.opacity(0.2), in: Capsule())
+                    }
+                }
+
+                Spacer(minLength: 8)
+            }
+
+            Divider()
+                .background(Color.white.opacity(0.12))
+                .padding(.vertical, 2)
+
+            HStack(spacing: 10) {
+                Button(action: onOpen) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "doc.text")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("Open")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundStyle(TelegramPalette.skyBlue)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(TelegramPalette.skyBlue.opacity(0.15), in: Capsule())
+                }
+                .buttonStyle(.plain)
+
+                Button(action: onAnalyze) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "brain.head.profile")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("Analyze with AI 🧠")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundStyle(Color(hex: 0x55E296))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color(hex: 0x55E296).opacity(0.15), in: Capsule())
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                Text(time)
+                    .font(.system(size: 11))
+                    .foregroundStyle(TelegramPalette.mutedText)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: 290)
+        .background(backgroundColor, in: TelegramBubbleShape(isOutgoing: isOutgoing))
+    }
+
+    private var extIcon: String {
+        switch ext.lowercased() {
+        case "swift": return "chevron.left.forwardslash.chevron.right"
+        case "json": return "curlybraces"
+        case "md": return "text.alignleft"
+        case "pdf": return "doc.richtext"
+        default: return "doc.text.fill"
+        }
+    }
+
+    private var extColor: Color {
+        switch ext.lowercased() {
+        case "swift": return Color(hex: 0xFF9500)
+        case "json": return Color(hex: 0xFFD60A)
+        case "md": return TelegramPalette.skyBlue
+        case "pdf": return Color(hex: 0xFF453A)
+        default: return Color(hex: 0x30B0C7)
+        }
+    }
+
+    private var backgroundColor: Color {
+        isOutgoing ? TelegramPalette.outgoingBubble : TelegramPalette.incomingBubble
+    }
+}
+
+// MARK: - Document Picker Sheet
+struct DocumentPickerSheet: View {
+    let onSelectPreset: (String, String, String) -> Void
+    let onBrowseDeviceFiles: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    private let presets = MediaStorageService.shared.samplePresetDocuments()
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section(header: Text("AIGram Knowledge Base Presets")) {
+                    ForEach(presets, id: \.name) { doc in
+                        Button {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            onSelectPreset(doc.name, doc.size, doc.ext)
+                            dismiss()
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: iconFor(ext: doc.ext))
+                                    .font(.system(size: 22))
+                                    .foregroundStyle(colorFor(ext: doc.ext))
+                                    .frame(width: 36, height: 36)
+
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(doc.name)
+                                        .font(.system(size: 15, weight: .semibold))
+                                        .foregroundStyle(.white)
+
+                                    Text("\(doc.size) • \(doc.summary)")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(TelegramPalette.mutedText)
+                                        .lineLimit(1)
+                                }
+
+                                Spacer()
+
+                                Image(systemName: "arrow.up.circle.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundStyle(TelegramPalette.skyBlue)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+
+                Section(header: Text("Device Files")) {
+                    Button {
+                        dismiss()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            onBrowseDeviceFiles()
+                        }
+                    } label: {
+                        Label("Attach File from Device...", systemImage: "folder.fill")
+                            .foregroundStyle(TelegramPalette.skyBlue)
+                    }
+                }
+            }
+            .navigationTitle("Attach Document")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+            .preferredColorScheme(.dark)
+        }
+    }
+
+    private func iconFor(ext: String) -> String {
+        switch ext {
+        case "swift": return "chevron.left.forwardslash.chevron.right"
+        case "json": return "curlybraces"
+        case "md": return "text.alignleft"
+        case "pdf": return "doc.richtext"
+        default: return "doc.text.fill"
+        }
+    }
+
+    private func colorFor(ext: String) -> Color {
+        switch ext {
+        case "swift": return Color(hex: 0xFF9500)
+        case "json": return Color(hex: 0xFFD60A)
+        case "md": return TelegramPalette.skyBlue
+        case "pdf": return Color(hex: 0xFF453A)
+        default: return Color(hex: 0x30B0C7)
+        }
+    }
+}
+
+// MARK: - Document Reader Modal
+struct DocumentViewItem: Identifiable {
+    var id: String { name }
+    let name: String
+    let ext: String
+}
+
+struct DocumentReaderModal: View {
+    let item: DocumentViewItem
+    @Environment(\.dismiss) private var dismiss
+    @State private var fileContent: String = ""
+    @State private var copiedAlert = false
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                // Code view with line numbers
+                ScrollView([.horizontal, .vertical], showsIndicators: true) {
+                    let lines = fileContent.components(separatedBy: .newlines)
+                    HStack(alignment: .top, spacing: 12) {
+                        // Line numbers
+                        VStack(alignment: .trailing, spacing: 4) {
+                            ForEach(0..<lines.count, id: \.self) { idx in
+                                Text("\(idx + 1)")
+                                    .font(.system(size: 13, weight: .regular, design: .monospaced))
+                                    .foregroundStyle(Color.white.opacity(0.3))
+                            }
+                        }
+                        .padding(.vertical, 8)
+                        .padding(.leading, 8)
+
+                        Divider()
+                            .background(Color.white.opacity(0.15))
+
+                        // File text lines
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(0..<lines.count, id: \.self) { idx in
+                                Text(lines[idx].isEmpty ? " " : lines[idx])
+                                    .font(.system(size: 13, weight: .regular, design: .monospaced))
+                                    .foregroundStyle(syntaxColor(for: lines[idx]))
+                            }
+                        }
+                        .padding(.vertical, 8)
+                        .padding(.trailing, 16)
+                    }
+                }
+                .background(Color(hex: 0x0D1117))
+
+                // Bottom stats bar
+                HStack {
+                    Text("\(fileContent.components(separatedBy: .newlines).count) lines")
+                    Spacer()
+                    Text("\(fileContent.count) characters")
+                    Spacer()
+                    Text(item.ext.uppercased())
+                }
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(TelegramPalette.mutedText)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(TelegramPalette.backgroundElevated)
+            }
+            .navigationTitle(item.name)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        UIPasteboard.general.string = fileContent
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        copiedAlert = true
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                    }
+                }
+            }
+            .preferredColorScheme(.dark)
+            .task {
+                fileContent = MediaStorageService.shared.readDocumentText(filename: item.name) ?? "// File content not found."
+            }
+            .alert("Copied to Clipboard", isPresented: $copiedAlert) {
+                Button("OK", role: .cancel) { }
+            }
+        }
+    }
+
+    private func syntaxColor(for line: String) -> Color {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        if trimmed.hasPrefix("//") || trimmed.hasPrefix("#") {
+            return Color(hex: 0x8B949E) // Comment gray
+        } else if trimmed.hasPrefix("import") || trimmed.hasPrefix("struct") || trimmed.hasPrefix("actor") || trimmed.hasPrefix("protocol") || trimmed.hasPrefix("final") || trimmed.hasPrefix("func") {
+            return Color(hex: 0xFF7B72) // Keyword red/pink
+        } else if trimmed.hasPrefix("\"") || trimmed.hasPrefix("let") || trimmed.hasPrefix("var") {
+            return Color(hex: 0x79C0FF) // Blue
+        } else {
+            return Color(hex: 0xE6EDF3) // Light text
+        }
     }
 }

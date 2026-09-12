@@ -28,6 +28,8 @@ extension TelegramPalette {
     static let settingsPrimaryText = Color.white
     static let settingsSecondaryText = Color(hex: 0x8E8E93)
     static let settingsSearchFill = Color.white.opacity(0.08)
+    static let outgoingBubble = Color(hex: 0x0A84FF)
+    static let incomingBubble = Color(hex: 0x1C1C1E)
 }
 
 extension Color {

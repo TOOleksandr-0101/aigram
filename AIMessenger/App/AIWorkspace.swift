@@ -17,7 +17,7 @@ private struct StoredConversationState: Codable {
 
 @MainActor
 final class AIWorkspace: ObservableObject {
-    private static let conversationSchemaVersion = 4
+    private static let conversationSchemaVersion = 5
 
     @Published var displayName: String {
         didSet { defaults.set(displayName, forKey: Keys.displayName) }
@@ -184,6 +184,138 @@ final class AIWorkspace: ObservableObject {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 
+    func togglePinMessage(messageId: String, in thread: ChatThread) {
+        var msgs = messages(for: thread)
+        guard let idx = msgs.firstIndex(where: { $0.id == messageId }) else { return }
+
+        let willPin = !msgs[idx].isPinned
+        for i in msgs.indices {
+            msgs[i].isPinned = false
+        }
+        msgs[idx].isPinned = willPin
+
+        if let tIdx = threads.firstIndex(where: { $0.id == thread.id }) {
+            if willPin {
+                threads[tIdx].pinnedMessageId = messageId
+                threads[tIdx].pinnedMessageSnippet = msgs[idx].previewSnippet
+                threads[tIdx].pinnedMessageAuthor = msgs[idx].authorName ?? (msgs[idx].side == .outgoing ? "You" : thread.title)
+            } else {
+                threads[tIdx].pinnedMessageId = nil
+                threads[tIdx].pinnedMessageSnippet = nil
+                threads[tIdx].pinnedMessageAuthor = nil
+            }
+        }
+
+        replaceMessages(msgs, for: thread)
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    func unpinMessage(in thread: ChatThread) {
+        var msgs = messages(for: thread)
+        for i in msgs.indices {
+            msgs[i].isPinned = false
+        }
+        if let tIdx = threads.firstIndex(where: { $0.id == thread.id }) {
+            threads[tIdx].pinnedMessageId = nil
+            threads[tIdx].pinnedMessageSnippet = nil
+            threads[tIdx].pinnedMessageAuthor = nil
+        }
+        replaceMessages(msgs, for: thread)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    func pinnedMessage(for thread: ChatThread) -> ConversationMessage? {
+        let msgs = messages(for: thread)
+        return msgs.first(where: { $0.isPinned })
+    }
+
+    func sendDocument(name: String, size: String, ext: String, localFileName: String? = nil, to thread: ChatThread) {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        let msg = ConversationMessage(
+            id: UUID().uuidString,
+            side: .outgoing,
+            payload: .document(name: name, size: size, ext: ext, localFileName: localFileName ?? name),
+            time: formatter.string(from: Date()),
+            localFileName: localFileName ?? name
+        )
+        appendMessage(msg, to: thread)
+        generateAIResponseIfNeeded(for: msg, in: thread)
+    }
+
+    func sendReply(replyTo: ConversationMessage, text: String, to thread: ChatThread) {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        let msg = ConversationMessage(
+            id: UUID().uuidString,
+            side: .outgoing,
+            payload: .text(text),
+            time: formatter.string(from: Date()),
+            replyToMessageId: replyTo.id,
+            replyToSnippet: replyTo.previewSnippet,
+            replyToAuthor: replyTo.authorName ?? (replyTo.side == .outgoing ? "You" : thread.title)
+        )
+        appendMessage(msg, to: thread)
+        generateAIResponseIfNeeded(for: msg, in: thread)
+    }
+
+    func analyzeDocument(message: ConversationMessage, in thread: ChatThread) {
+        guard case let .document(name, size, ext, localFile) = message.payload else { return }
+        let fileName = localFile ?? name
+        let textContent = MediaStorageService.shared.readDocumentText(filename: fileName) ?? ""
+
+        Task {
+            try? await Task.sleep(nanoseconds: 700_000_000)
+
+            let analysis: String
+            if ext == "swift" {
+                analysis = """
+                🧠 **Анализ кода «\(name)» (RAG-индекс: 100%)**:
+                1. **Конкурентность**: Использован глобальный актор `@globalActor actor AIGramCoreActor` для изоляции критических состояний.
+                2. **Потокобезопасность**: Протокол `MessageStreamDelegate` помечен как `Sendable`, предотвращая гонки данных при параллельной передаче токенов.
+                3. **Рекомендация**: На строке 21 в `dispatchAgentDiscussion` стоит добавить таймаут с отменой через `withThrowingTaskGroup`.
+                """
+            } else if ext == "md" {
+                analysis = """
+                🧠 **Анализ документа «\(name)» (RAG-индекс: 100%)**:
+                1. **Ключевой фокус**: Сочетание сверхбыстрого нативного Telegram UX с автономным слоем агентов.
+                2. **Milestone 2 (Live Duplex Voice)**: Архитектура полнодуплексного аудио готова к релизу.
+                3. **Оценка роадмапа**: План сбалансирован, риски регрессий минимизированы строгой типизацией Swift 6.
+                """
+            } else if ext == "json" {
+                analysis = """
+                🧠 **Анализ метрик «\(name)» (RAG-индекс: 100%)**:
+                1. **Cold start**: 142.5 ms (на 35% быстрее отраслевого бенчмарка).
+                2. **UI Frame rate**: Стабильные 120 FPS благодаря `SwiftUI` диффингу.
+                3. **Inference**: Скорость генерации 84.6 т/с полностью перекрывает потребности живого диалога.
+                """
+            } else {
+                let previewSnippet = String(textContent.prefix(200))
+                analysis = """
+                🧠 **RAG-анализ документа «\(name)» (\(size))**:
+                Файл успешно проанализирован. Ключевой контекст: "\(previewSnippet)..."
+                Все сущности извлечены в локальный граф знаний для контекстных ответов.
+                """
+            }
+
+            let formatter = DateFormatter()
+            formatter.dateFormat = "HH:mm"
+            let replyMsg = ConversationMessage(
+                id: UUID().uuidString,
+                side: .incoming,
+                payload: .text(analysis),
+                time: formatter.string(from: Date()),
+                authorName: thread.isGroup ? "Code Partner" : thread.title,
+                authorAvatar: thread.avatar,
+                replyToMessageId: message.id,
+                replyToSnippet: message.previewSnippet,
+                replyToAuthor: message.authorName ?? "You"
+            )
+            self.appendMessage(replyMsg, to: thread)
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        }
+    }
+
     func deleteMessage(messageId: String, in thread: ChatThread) {
         var msgs = messages(for: thread)
         msgs.removeAll { $0.id == messageId }
@@ -348,6 +480,8 @@ final class AIWorkspace: ObservableObject {
                 promptSummary = "[Пользователь записал видеосообщение: \(duration)]"
             case let .widget(widget):
                 promptSummary = "[Пользователь обновил интерактивный виджет «\(widget.title)» со статусом: \(widget.currentStatus)]"
+            case let .document(name, size, _, _):
+                promptSummary = "[Пользователь прикрепил документ: \(name) (\(size))]"
             default:
                 return
             }
@@ -440,6 +574,16 @@ final class AIWorkspace: ObservableObject {
             }
         case let .widget(widget):
             return "Синхронизировал данные интерактивного виджета «\(widget.title)». Текущий статус: [\(widget.currentStatus)]."
+        case let .document(name, size, ext, _):
+            if ext == "swift" {
+                return "Изучил исходный код файла «\(name)» (\(size)). Архитектура использует Swift 6 Concurrency: акторы, @globalActor и Sendable-модели корректно изолируют состояние."
+            } else if ext == "md" {
+                return "Ознакомился с документом «\(name)» (\(size)). Структура роадмапа понятна, этапы Q3-Q4 выстроены логично."
+            } else if ext == "json" {
+                return "Разобрал телеметрию из «\(name)» (\(size)). Задержка 18.2ms и фреймрейт 120 FPS подтверждают стабильность сборки."
+            } else {
+                return "Документ «\(name)» (\(size)) получен и проиндексирован в локальной базе знаний RAG."
+            }
         default:
             return "Сообщение принято и сохранено."
         }
@@ -651,6 +795,8 @@ final class AIWorkspace: ObservableObject {
             baseText = "\(emoji) Sticker"
         case let .widget(widget):
             baseText = "⚡ \(widget.title) (\(widget.currentStatus))"
+        case let .document(name, size, _, _):
+            baseText = "📄 \(name) (\(size))"
         }
 
         if let authorName = message.authorName, message.side == .incoming {

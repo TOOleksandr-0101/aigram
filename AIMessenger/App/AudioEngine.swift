@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import SwiftUI
 
 // MARK: - Audio Recording Manager
 final class AudioRecordingManager: NSObject, ObservableObject, AVAudioRecorderDelegate {
@@ -284,43 +285,193 @@ final class VoiceCallSpeechSynthesizer: NSObject, ObservableObject, AVSpeechSynt
 
     @Published private(set) var isSpeaking = false
     @Published private(set) var currentUtteranceText = ""
+    @Published private(set) var outputAudioLevel: CGFloat = 0.0
 
     private let synthesizer = AVSpeechSynthesizer()
+    private var meterTimer: Timer?
+    private var finishCompletion: (() -> Void)?
 
     private override init() {
         super.init()
         synthesizer.delegate = self
     }
 
-    func speak(text: String, completion: (() -> Void)? = nil) {
+    func speak(text: String, timbre: VoiceTimbre = VoiceTimbre.presets[0], completion: (() -> Void)? = nil) {
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetooth])
         try? session.setActive(true)
 
         synthesizer.stopSpeaking(at: .immediate)
+        meterTimer?.invalidate()
         currentUtteranceText = text
         isSpeaking = true
+        finishCompletion = completion
 
         let utterance = AVSpeechUtterance(string: text)
-        utterance.rate = 0.50
-        utterance.pitchMultiplier = 1.0
+        utterance.rate = timbre.rate
+        utterance.pitchMultiplier = timbre.pitch
         utterance.volume = 1.0
 
         let isRussian = text.range(of: "\\p{Cyrillic}", options: .regularExpression) != nil
         utterance.voice = AVSpeechSynthesisVoice(language: isRussian ? "ru-RU" : "en-US")
 
+        startOutputMetering()
         synthesizer.speak(utterance)
     }
 
     func stop() {
+        meterTimer?.invalidate()
+        meterTimer = nil
         synthesizer.stopSpeaking(at: .immediate)
         isSpeaking = false
         currentUtteranceText = ""
+        outputAudioLevel = 0.0
+        finishCompletion = nil
+    }
+
+    private func startOutputMetering() {
+        meterTimer?.invalidate()
+        meterTimer = Timer.scheduledTimer(withTimeInterval: 0.06, repeats: true) { [weak self] _ in
+            guard let self = self, self.isSpeaking else { return }
+            let t = Date().timeIntervalSinceReferenceDate * 9.0
+            let modulated = 0.40 + 0.45 * CGFloat(abs(sin(t) * cos(t * 1.7)))
+            DispatchQueue.main.async {
+                self.outputAudioLevel = modulated
+            }
+        }
     }
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        meterTimer?.invalidate()
+        meterTimer = nil
         DispatchQueue.main.async {
             self.isSpeaking = false
+            self.outputAudioLevel = 0.0
+            self.finishCompletion?()
+            self.finishCompletion = nil
+        }
+    }
+}
+
+// MARK: - Live Duplex Voice Engine
+enum DuplexVoiceState: String, CaseIterable {
+    case idle = "Connected"
+    case listening = "Listening to you..."
+    case thinking = "AI is thinking..."
+    case speaking = "AI is speaking..."
+
+    var statusColor: Color {
+        switch self {
+        case .idle: return Color(hex: 0x55E296)
+        case .listening: return Color(hex: 0x5AC8FA)
+        case .thinking: return Color(hex: 0xFF9500)
+        case .speaking: return Color(hex: 0x30D158)
+        }
+    }
+}
+
+@MainActor
+final class LiveDuplexVoiceManager: ObservableObject {
+    static let shared = LiveDuplexVoiceManager()
+
+    @Published private(set) var state: DuplexVoiceState = .idle
+    @Published private(set) var activeAudioLevel: CGFloat = 0.2
+    @Published private(set) var userTranscript: String = ""
+    @Published private(set) var aiResponseText: String = ""
+    @Published var selectedTimbre: VoiceTimbre = VoiceTimbre.presets[0]
+
+    private var micMonitorTimer: Timer?
+    private var isMuted: Bool = false
+
+    private init() {}
+
+    func startDuplex(initialGreeting: String, timbre: VoiceTimbre = VoiceTimbre.presets[0]) {
+        self.selectedTimbre = timbre
+        self.state = .speaking
+        self.aiResponseText = initialGreeting
+
+        VoiceCallSpeechSynthesizer.shared.speak(text: initialGreeting, timbre: timbre) { [weak self] in
+            guard let self = self else { return }
+            self.state = .listening
+            self.startMicListening()
+        }
+
+        startLevelSyncLoop()
+    }
+
+    func stopDuplex() {
+        micMonitorTimer?.invalidate()
+        micMonitorTimer = nil
+        VoiceCallSpeechSynthesizer.shared.stop()
+        state = .idle
+        activeAudioLevel = 0.1
+    }
+
+    func setMuted(_ muted: Bool) {
+        self.isMuted = muted
+        if muted {
+            VoiceCallSpeechSynthesizer.shared.stop()
+            state = .idle
+        } else if state == .idle {
+            state = .listening
+            startMicListening()
+        }
+    }
+
+    func sendUserPrompt(_ text: String, personaName: String = "Code Partner") {
+        guard !isMuted else { return }
+        micMonitorTimer?.invalidate()
+        micMonitorTimer = nil
+
+        userTranscript = text
+        state = .thinking
+        activeAudioLevel = 0.55
+
+        Task {
+            try? await Task.sleep(nanoseconds: 800_000_000)
+
+            let reply: String
+            switch personaName {
+            case "Design Scout":
+                reply = "Отличная идея! Для интерфейса я рекомендую использовать 16pt сетку с легким размытием фона и акцентным цветом."
+            case "Product Coach":
+                reply = "Зафиксировал продуктовое требование. Это поможет поднять удержание первого дня и упростит онбординг."
+            case "Research Desk":
+                reply = "По данным наших бенчмарков, такой подход дает прирост скорости инференса на 42% без потери качества."
+            default:
+                reply = "Анализирую архитектуру. В Swift 6 акторная изоляция исключает гонки данных. Готов детально разобрать сценарий."
+            }
+
+            self.aiResponseText = reply
+            self.state = .speaking
+
+            VoiceCallSpeechSynthesizer.shared.speak(text: reply, timbre: self.selectedTimbre) { [weak self] in
+                guard let self = self else { return }
+                self.state = .listening
+                self.startMicListening()
+            }
+        }
+    }
+
+    private func startMicListening() {
+        micMonitorTimer?.invalidate()
+        micMonitorTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
+            guard let self = self, self.state == .listening, !self.isMuted else { return }
+            let t = Date().timeIntervalSinceReferenceDate * 4.5
+            let level = 0.20 + 0.25 * CGFloat(abs(sin(t) * cos(t * 1.3)))
+            self.activeAudioLevel = level
+        }
+    }
+
+    private func startLevelSyncLoop() {
+        Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] timer in
+            guard let self = self else {
+                timer.invalidate()
+                return
+            }
+            if self.state == .speaking {
+                self.activeAudioLevel = VoiceCallSpeechSynthesizer.shared.outputAudioLevel
+            }
         }
     }
 }
