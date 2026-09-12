@@ -133,7 +133,12 @@ struct RootView: View {
 
     private func handleLaunchArguments() {
         let args = ProcessInfo.processInfo.arguments
-        if args.contains("-openDesignScout") {
+        if args.contains("-openAleksizz") {
+            if let thread = aiWorkspace.threads.first(where: { $0.id == "aleksizz" }) {
+                selectedTab = .chats
+                chatsPath = [.conversation(thread)]
+            }
+        } else if args.contains("-openDesignScout") {
             if let thread = aiWorkspace.threads.first(where: { $0.id == "design-scout" }) ?? aiWorkspace.threads.first {
                 selectedTab = .chats
                 chatsPath = [.conversation(thread)]

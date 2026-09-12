@@ -17,7 +17,7 @@ private struct StoredConversationState: Codable {
 
 @MainActor
 final class AIWorkspace: ObservableObject {
-    private static let conversationSchemaVersion = 5
+    private static let conversationSchemaVersion = 6
 
     @Published var displayName: String {
         didSet { defaults.set(displayName, forKey: Keys.displayName) }

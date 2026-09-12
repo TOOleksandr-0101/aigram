@@ -42,19 +42,34 @@ struct ChatConversationScreen: View {
 
     init(thread: ChatThread) {
         self.thread = thread
+        _messages = State(initialValue: ConversationMessage.bootstrapConversation(for: thread))
     }
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 8) {
-                    ChatDatePill(title: "Today")
+                VStack(spacing: 0) {
+                    ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+                        let prevMessage = index > 0 ? messages[index - 1] : nil
+                        let nextMessage = index < messages.count - 1 ? messages[index + 1] : nil
 
-                    ForEach(messages) { message in
+                        let isFirstInGroup = prevMessage == nil || prevMessage?.side != message.side
+                        let isLastInGroup = nextMessage == nil || nextMessage?.side != message.side
+
+                        // Show date pill at top or between distinct message dates
+                        if thread.id == "aleksizz" ? index == 6 : (isFirstInGroup && index == 0) {
+                            ChatDatePill(title: "Today")
+                                .padding(.vertical, 8)
+                        }
+
                         MessageBubble(
                             message: message,
                             thread: thread,
                             isGroupThread: thread.isGroup,
+                            isFirstInGroup: isFirstInGroup,
+                            isLastInGroup: isLastInGroup,
+                            messageIndex: index,
+                            totalMessages: messages.count,
                             onReact: { emoji in
                                 aiWorkspace.addReaction(emoji: emoji, to: message.id, in: thread)
                                 messages = aiWorkspace.messages(for: thread)
@@ -93,19 +108,43 @@ struct ChatConversationScreen: View {
                                 messages = aiWorkspace.messages(for: thread)
                             }
                         )
+                        .padding(.top, isFirstInGroup ? (index == 0 ? 0 : 8) : 2.5)
                         .id(message.id)
                     }
 
                     if isSending {
                         TypingBubble(authorName: currentTypingBotName)
+                            .padding(.top, 8)
                             .id("typingBubble")
                     }
                 }
                 .padding(.horizontal, 8)
                 .padding(.top, 8)
-                .padding(.bottom, 24)
+                .padding(.bottom, 8)
             }
-            .onChange(of: messages.count) { _ in
+            .safeAreaInset(edge: .top, spacing: 0) {
+                VStack(spacing: 0) {
+                    topBar
+                    if let pinned = currentPinnedMessage {
+                        pinnedHeaderBanner(message: pinned)
+                    }
+                }
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                VStack(spacing: 0) {
+                    if isMentionsPopupVisible {
+                        mentionsAutocompleteRow
+                    }
+                    if let replyMsg = replyingToMessage {
+                        replyPreviewBanner(replyMsg)
+                    }
+                    inputBar
+                }
+            }
+            .onChange(of: messages.count) { newCount in
+                if thread.id == "aleksizz" && newCount <= 17 {
+                    return
+                }
                 if let last = messages.last {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                         proxy.scrollTo(last.id, anchor: .bottom)
@@ -118,24 +157,12 @@ struct ChatConversationScreen: View {
                     proxy.scrollTo(id, anchor: .center)
                 }
             }
-        }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            VStack(spacing: 0) {
-                topBar
-                if let pinned = currentPinnedMessage {
-                    pinnedHeaderBanner(message: pinned)
+            .onAppear {
+                if thread.id == "aleksizz" {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        proxy.scrollTo("ak-1", anchor: .top)
+                    }
                 }
-            }
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: 0) {
-                if isMentionsPopupVisible {
-                    mentionsAutocompleteRow
-                }
-                if let replyMsg = replyingToMessage {
-                    replyPreviewBanner(replyMsg)
-                }
-                inputBar
             }
         }
         .scrollContentBackground(.hidden)
@@ -489,86 +516,77 @@ struct ChatConversationScreen: View {
     }
 
     private var topBar: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             Button {
                 dismiss()
             } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 28, height: 28)
+                HStack(spacing: 5) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(.white)
+
+                    Text("835")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+                .padding(.horizontal, 11)
+                .padding(.vertical, 6)
+                .background(Color.black.opacity(0.48), in: Capsule())
             }
 
-            AvatarView(kind: thread.avatar, showsOnlineDot: thread.online)
-                .frame(width: 36, height: 36)
-                .scaleEffect(0.6)
+            Spacer()
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(spacing: 1.5) {
                 Text(thread.title)
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.system(size: 16.5, weight: .semibold))
                     .foregroundStyle(.white)
 
                 if isSending {
-                    HStack(spacing: 2) {
+                    HStack(spacing: 3) {
                         Text(currentTypingBotName != nil ? "\(currentTypingBotName!) is typing" : "typing")
-                            .font(.system(size: 13))
+                            .font(.system(size: 12))
                             .foregroundStyle(TelegramPalette.skyBlue)
                         TypingHeaderDots()
                     }
                 } else {
-                    Text(thread.isGroup ? thread.memberNamesText : thread.aiProfile.status)
-                        .font(.system(size: 13))
-                        .foregroundStyle(thread.online ? TelegramPalette.skyBlue : TelegramPalette.mutedText)
+                    Text(thread.id == "aleksizz" ? "last seen recently" : (thread.isGroup ? thread.memberNamesText : thread.aiProfile.status))
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.white.opacity(0.6))
                         .lineLimit(1)
                 }
             }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 5)
+            .background(Color.black.opacity(0.48), in: Capsule())
 
             Spacer()
 
             Button {
                 isCallPresented = true
             } label: {
-                Image(systemName: "phone.fill")
-                    .font(.system(size: 16))
-                    .foregroundStyle(.white)
-                    .frame(width: 32, height: 32)
-            }
-
-            Menu {
-                Button {
-                    aiWorkspace.togglePin(for: thread)
-                } label: {
-                    Label(thread.isPinned ? "Unpin Chat" : "Pin Chat", systemImage: thread.isPinned ? "pin.slash" : "pin")
+                ZStack {
+                    LinearGradient(
+                        colors: [Color(hex: 0xCF43B8), Color(hex: 0xA134EE)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    Text(String(thread.title.prefix(1)).uppercased())
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(.white)
                 }
-
-                Button {
-                    aiWorkspace.toggleMute(for: thread)
-                } label: {
-                    Label(thread.isMuted ? "Unmute" : "Mute Notifications", systemImage: thread.isMuted ? "bell" : "bell.slash")
-                }
-
-                Divider()
-
-                Button(role: .destructive) {
-                    aiWorkspace.deleteThread(thread)
-                    dismiss()
-                } label: {
-                    Label("Delete Chat", systemImage: "trash")
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .font(.system(size: 20))
-                    .foregroundStyle(.white)
+                .frame(width: 36, height: 36)
+                .clipShape(Circle())
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(TelegramPalette.backgroundElevated)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(TelegramPalette.separator)
-                .frame(height: 0.5)
-        }
+        .padding(.horizontal, 12)
+        .background(
+            LinearGradient(
+                colors: [Color.black.opacity(0.65), Color.black.opacity(0.2), Color.clear],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+        )
     }
 
     private var inputBar: some View {
@@ -580,9 +598,9 @@ struct ChatConversationScreen: View {
             }
         }
         .padding(.horizontal, 10)
-        .padding(.top, 10)
-        .padding(.bottom, 14)
-        .background(TelegramPalette.backgroundElevated)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
+        .background(Color.black.opacity(0.35))
         .overlay(alignment: .top) {
             if let errorText {
                 Text(errorText)
@@ -648,18 +666,19 @@ struct ChatConversationScreen: View {
     }
 
     private var normalInputBar: some View {
-        Group {
-            HStack(spacing: 8) {
-                Button {
-                    showAttachmentSheet = true
-                } label: {
-                    Image(systemName: "paperclip")
-                        .font(.system(size: 19))
-                        .foregroundStyle(TelegramPalette.mutedText)
-                }
+        HStack(spacing: 10) {
+            Button {
+                showAttachmentSheet = true
+            } label: {
+                Image(systemName: "paperclip")
+                    .font(.system(size: 22, weight: .regular))
+                    .foregroundStyle(Color.white.opacity(0.85))
+            }
+            .padding(.leading, 4)
 
+            HStack(spacing: 8) {
                 TextField("Message", text: $draft)
-                    .font(.system(size: 17))
+                    .font(.system(size: 16.5))
                     .foregroundStyle(.white)
                     .disabled(isSending)
 
@@ -668,12 +687,12 @@ struct ChatConversationScreen: View {
                 } label: {
                     Image(systemName: "face.smiling")
                         .font(.system(size: 20))
-                        .foregroundStyle(TelegramPalette.mutedText)
+                        .foregroundStyle(Color.white.opacity(0.6))
                 }
             }
-            .padding(.horizontal, 12)
-            .frame(height: 40)
-            .background(Color.white.opacity(0.08), in: Capsule(style: .continuous))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(Color(hex: 0x1E1F24), in: Capsule(style: .continuous))
 
             if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Button {
@@ -683,14 +702,10 @@ struct ChatConversationScreen: View {
                         handleMediaTap()
                     }
                 } label: {
-                    Image(systemName: inputMediaMode == .voice ? "mic.fill" : "camera.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 36, height: 36)
-                        .background(
-                            inputMediaMode == .voice ? TelegramPalette.skyBlue : Color(hex: 0x30B0C7),
-                            in: Circle()
-                        )
+                    Image(systemName: inputMediaMode == .voice ? "mic" : "camera")
+                        .font(.system(size: 22, weight: .regular))
+                        .foregroundStyle(Color.white.opacity(0.85))
+                        .frame(width: 32, height: 32)
                 }
                 .contextMenu {
                     Button {
@@ -720,8 +735,8 @@ struct ChatConversationScreen: View {
                     }
                 } label: {
                     Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 34))
-                        .foregroundStyle(canSend ? .white : Color.white.opacity(0.35))
+                        .font(.system(size: 32))
+                        .foregroundStyle(TelegramPalette.skyBlue)
                 }
                 .disabled(canSend == false)
             }
@@ -969,6 +984,8 @@ struct ChatConversationScreen: View {
         }
 
         switch thread.id {
+        case "aleksizz":
+            return "Давай, я на связи. Как освободишься — маякни."
         case "seminar-circle":
             return """
             [Study Room] Могу быстро разложить это на понятный конспект и 5 карточек для повторения: \(draft)
@@ -1083,6 +1100,10 @@ private struct MessageBubble: View {
     let message: ConversationMessage
     let thread: ChatThread
     let isGroupThread: Bool
+    var isFirstInGroup: Bool = true
+    var isLastInGroup: Bool = true
+    var messageIndex: Int = 0
+    var totalMessages: Int = 1
     let onReact: (String) -> Void
     let onDelete: () -> Void
     let onTranscribe: () -> Void
@@ -1232,11 +1253,16 @@ private struct MessageBubble: View {
             }
         default:
             content
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .padding(.trailing, message.side == .outgoing ? 5 : 0)
-                .padding(.leading, message.side == .incoming ? 5 : 0)
-                .background(backgroundColor, in: TelegramBubbleShape(isOutgoing: message.side == .outgoing))
+                .padding(.horizontal, 11)
+                .padding(.vertical, 6.5)
+                .background(
+                    bubbleShapeStyle,
+                    in: TelegramGroupedBubbleShape(
+                        isOutgoing: message.side == .outgoing,
+                        isFirstInGroup: isFirstInGroup,
+                        isLastInGroup: isLastInGroup
+                    )
+                )
                 .contextMenu {
                     contextMenuContent
                 }
@@ -1389,24 +1415,25 @@ private struct MessageBubble: View {
     private var payloadContent: some View {
         switch message.payload {
         case let .text(text):
-            VStack(alignment: message.side == .outgoing ? .trailing : .leading, spacing: 5) {
-                Text(text)
-                    .font(.system(size: 17))
-                    .foregroundStyle(foregroundColor)
+            ViewThatFits(in: .horizontal) {
+                // Inline single-line layout (e.g. "окей  16:33 ✓✓", "Саня  16:26")
+                HStack(alignment: .lastTextBaseline, spacing: 7) {
+                    Text(text)
+                        .font(.system(size: 16.5))
+                        .foregroundStyle(foregroundColor)
 
-                HStack(spacing: 3) {
-                    Text(message.time)
-                        .font(.system(size: 11))
-
-                    if message.side == .outgoing {
-                        HStack(spacing: -3) {
-                            Image(systemName: "checkmark")
-                            Image(systemName: "checkmark")
-                        }
-                        .font(.system(size: 9, weight: .bold))
-                    }
+                    timeAndDeliveryBadge(isInline: true)
                 }
-                .foregroundStyle(foregroundColor.opacity(0.75))
+
+                // Multi-line layout
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(text)
+                        .font(.system(size: 16.5))
+                        .foregroundStyle(foregroundColor)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    timeAndDeliveryBadge(isInline: false)
+                }
             }
         case let .voice(duration):
             VoiceMessageBubble(
@@ -1479,12 +1506,59 @@ private struct MessageBubble: View {
         }
     }
 
-    private var foregroundColor: Color {
-        message.side == .outgoing ? .white : Color.black
+    private func timeAndDeliveryBadge(isInline: Bool) -> some View {
+        HStack(spacing: 3) {
+            Text(message.time)
+                .font(.system(size: 11.5))
+                .foregroundStyle(message.side == .outgoing ? Color.white.opacity(0.85) : Color.white.opacity(0.6))
+
+            if message.side == .outgoing {
+                HStack(spacing: -3.5) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 9.5, weight: .semibold))
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 9.5, weight: .semibold))
+                }
+                .foregroundStyle(Color.white.opacity(0.85))
+            }
+        }
+        .padding(.leading, isInline ? 2 : 0)
+        .padding(.top, isInline ? 0 : 1)
     }
 
-    private var backgroundColor: Color {
-        message.side == .outgoing ? Color(hex: 0x0A84FF) : Color.white
+    private var bubbleShapeStyle: AnyShapeStyle {
+        if message.side == .outgoing {
+            return AnyShapeStyle(outgoingGradient)
+        } else {
+            return AnyShapeStyle(Color(hex: 0x222328))
+        }
+    }
+
+    private var outgoingGradient: LinearGradient {
+        let progress = totalMessages > 1 ? min(1.0, max(0.0, Double(messageIndex) / Double(totalMessages - 1))) : 0.5
+        if progress < 0.4 {
+            return LinearGradient(
+                colors: [Color(hex: 0x933DF8), Color(hex: 0x7532F8)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        } else if progress > 0.75 {
+            return LinearGradient(
+                colors: [Color(hex: 0x2C72FF), Color(hex: 0x1A54E8)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        } else {
+            return LinearGradient(
+                colors: [Color(hex: 0x753DF8), Color(hex: 0x4858F8)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+
+    private var foregroundColor: Color {
+        .white
     }
 
     private var authorTint: Color {
@@ -1684,25 +1758,27 @@ struct ChatDatePill: View {
 
 struct TelegramDoodleWallpaper: View {
     private let doodleIcons: [[String]] = [
-        ["paperplane.fill", "sparkles", "heart.fill", "cup.and.saucer.fill"],
-        ["chevron.left.forwardslash.chevron.right", "star.fill", "music.note", "bolt.fill"],
-        ["bubble.left.fill", "globe.europe.africa.fill", "gearshape.fill", "pawprint.fill"],
-        ["gamecontroller.fill", "lock.fill", "camera.fill", "headphones"]
+        ["pawprint.fill", "moon.stars.fill", "gamecontroller.fill", "cup.and.saucer.fill"],
+        ["tortoise.fill", "sparkles", "umbrella.fill", "bolt.fill"],
+        ["cat.fill", "globe.europe.africa.fill", "balloon.fill", "heart.fill"],
+        ["fish.fill", "star.fill", "headphones", "airplane"],
+        ["camera.fill", "bicycle", "flame.fill", "music.note"],
+        ["fork.knife", "wineglass.fill", "car.fill", "sun.max.fill"]
     ]
 
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [Color(hex: 0x161618), Color(hex: 0x0E0E0F)],
+                colors: [Color(hex: 0x08090C), Color(hex: 0x0D0E12)],
                 startPoint: .top,
                 endPoint: .bottom
             )
 
             GeometryReader { geometry in
                 let columns = 4
-                let rows = Int(geometry.size.height / 75) + 2
+                let rows = Int(geometry.size.height / 72) + 2
                 let cellWidth = geometry.size.width / CGFloat(columns)
-                let cellHeight: CGFloat = 75
+                let cellHeight: CGFloat = 72
 
                 VStack(spacing: 0) {
                     ForEach(0 ..< rows, id: \.self) { row in
@@ -1710,8 +1786,8 @@ struct TelegramDoodleWallpaper: View {
                             ForEach(0 ..< columns, id: \.self) { col in
                                 let iconName = doodleIcons[row % doodleIcons.count][col % doodleIcons[0].count]
                                 Image(systemName: iconName)
-                                    .font(.system(size: 22, weight: .light))
-                                    .foregroundStyle(Color.white.opacity(0.045))
+                                    .font(.system(size: 23, weight: .light))
+                                    .foregroundStyle(Color(hex: 0x9333EA).opacity(0.18))
                                     .rotationEffect(.degrees((col % 2 == 0) ? -12 : 12))
                                     .frame(width: cellWidth, height: cellHeight)
                             }
@@ -1724,90 +1800,35 @@ struct TelegramDoodleWallpaper: View {
     }
 }
 
+struct TelegramGroupedBubbleShape: Shape {
+    let isOutgoing: Bool
+    var isFirstInGroup: Bool = true
+    var isLastInGroup: Bool = true
+
+    func path(in rect: CGRect) -> Path {
+        let outer: CGFloat = 17.0
+        let inner: CGFloat = 4.5
+
+        let topLeading: CGFloat = isOutgoing ? outer : (isFirstInGroup ? outer : inner)
+        let bottomLeading: CGFloat = isOutgoing ? outer : (isLastInGroup ? outer : inner)
+        let topTrailing: CGFloat = isOutgoing ? (isFirstInGroup ? outer : inner) : outer
+        let bottomTrailing: CGFloat = isOutgoing ? (isLastInGroup ? outer : inner) : outer
+
+        return UnevenRoundedRectangle(
+            topLeadingRadius: topLeading,
+            bottomLeadingRadius: bottomLeading,
+            bottomTrailingRadius: bottomTrailing,
+            topTrailingRadius: topTrailing,
+            style: .continuous
+        ).path(in: rect)
+    }
+}
+
 struct TelegramBubbleShape: Shape {
     let isOutgoing: Bool
 
     func path(in rect: CGRect) -> Path {
-        let r: CGFloat = 17
-        let tailSize: CGFloat = 6
-
-        var p = Path()
-
-        if isOutgoing {
-            p.move(to: CGPoint(x: rect.minX + r, y: rect.minY))
-            p.addLine(to: CGPoint(x: rect.maxX - r - tailSize, y: rect.minY))
-            p.addArc(
-                center: CGPoint(x: rect.maxX - r - tailSize, y: rect.minY + r),
-                radius: r,
-                startAngle: .degrees(-90),
-                endAngle: .degrees(0),
-                clockwise: false
-            )
-            p.addLine(to: CGPoint(x: rect.maxX - tailSize, y: rect.maxY - 10))
-            p.addQuadCurve(
-                to: CGPoint(x: rect.maxX, y: rect.maxY),
-                control: CGPoint(x: rect.maxX - tailSize + 1, y: rect.maxY - 2)
-            )
-            p.addQuadCurve(
-                to: CGPoint(x: rect.maxX - tailSize - 5, y: rect.maxY),
-                control: CGPoint(x: rect.maxX - 2, y: rect.maxY)
-            )
-            p.addLine(to: CGPoint(x: rect.minX + r, y: rect.maxY))
-            p.addArc(
-                center: CGPoint(x: rect.minX + r, y: rect.maxY - r),
-                radius: r,
-                startAngle: .degrees(90),
-                endAngle: .degrees(180),
-                clockwise: false
-            )
-            p.addLine(to: CGPoint(x: rect.minX, y: rect.minY + r))
-            p.addArc(
-                center: CGPoint(x: rect.minX + r, y: rect.minY + r),
-                radius: r,
-                startAngle: .degrees(180),
-                endAngle: .degrees(270),
-                clockwise: false
-            )
-            p.closeSubpath()
-        } else {
-            p.move(to: CGPoint(x: rect.minX + r + tailSize, y: rect.minY))
-            p.addLine(to: CGPoint(x: rect.maxX - r, y: rect.minY))
-            p.addArc(
-                center: CGPoint(x: rect.maxX - r, y: rect.minY + r),
-                radius: r,
-                startAngle: .degrees(-90),
-                endAngle: .degrees(0),
-                clockwise: false
-            )
-            p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
-            p.addArc(
-                center: CGPoint(x: rect.maxX - r, y: rect.maxY - r),
-                radius: r,
-                startAngle: .degrees(0),
-                endAngle: .degrees(90),
-                clockwise: false
-            )
-            p.addLine(to: CGPoint(x: rect.minX + tailSize + 5, y: rect.maxY))
-            p.addQuadCurve(
-                to: CGPoint(x: rect.minX, y: rect.maxY),
-                control: CGPoint(x: rect.minX + 2, y: rect.maxY)
-            )
-            p.addQuadCurve(
-                to: CGPoint(x: rect.minX + tailSize, y: rect.maxY - 10),
-                control: CGPoint(x: rect.minX + tailSize - 1, y: rect.maxY - 2)
-            )
-            p.addLine(to: CGPoint(x: rect.minX + tailSize, y: rect.minY + r))
-            p.addArc(
-                center: CGPoint(x: rect.minX + r + tailSize, y: rect.minY + r),
-                radius: r,
-                startAngle: .degrees(180),
-                endAngle: .degrees(270),
-                clockwise: false
-            )
-            p.closeSubpath()
-        }
-
-        return p
+        TelegramGroupedBubbleShape(isOutgoing: isOutgoing, isFirstInGroup: true, isLastInGroup: true).path(in: rect)
     }
 }
 

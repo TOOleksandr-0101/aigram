@@ -23,6 +23,10 @@ The app is built natively with **SwiftUI** and connects directly to **OpenRouter
 ## 📸 Screenshots
 
 <p align="center">
+  <img src="docs/screenshots/aigram-telegram-pixel-perfect-chat.png" width="48%" alt="AIGram Pixel-Perfect Telegram iOS Chat Interior (Grouped Bubbles, Dynamic Gradient, Doodle Wallpaper)" />
+</p>
+
+<p align="center">
   <img src="docs/screenshots/aigram-live-duplex-call.png" width="31%" alt="AIGram Live Duplex Voice Mode with Glowing Audio Orb" />
   <img src="docs/screenshots/aigram-reply-and-pin.png" width="31%" alt="AIGram Swipe-to-Reply & Pinned Message Header Banner" />
   <img src="docs/screenshots/aigram-document-reader-modal.png" width="31%" alt="AIGram Syntax-Highlighted Code & Document Reader Modal" />

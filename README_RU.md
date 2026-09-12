@@ -23,6 +23,10 @@
 ## 📸 Скриншоты
 
 <p align="center">
+  <img src="docs/screenshots/aigram-telegram-pixel-perfect-chat.png" width="48%" alt="AIGram Пиксель-в-пиксель Telegram iOS чат (Сгруппированные бабблы, динамический градиент, дудл-обои)" />
+</p>
+
+<p align="center">
   <img src="docs/screenshots/aigram-live-duplex-call.png" width="31%" alt="AIGram Дуплексный AI-звонок со светящейся сферой звука" />
   <img src="docs/screenshots/aigram-reply-and-pin.png" width="31%" alt="AIGram Свайп для ответа и закрепленное сообщение" />
   <img src="docs/screenshots/aigram-document-reader-modal.png" width="31%" alt="AIGram Модальный вьювер кода и документов с подсветкой" />
