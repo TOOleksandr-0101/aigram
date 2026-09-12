@@ -493,23 +493,6 @@ struct CallRecord: Identifiable, Hashable {
 extension ChatThread {
     static let sampleThreads: [ChatThread] = [
         ChatThread(
-            id: "aleksizz",
-            title: "Aleksizz",
-            headline: "и напишу",
-            detail: "last seen recently",
-            time: "16:33",
-            badge: nil,
-            badgeBright: false,
-            isMuted: false,
-            isPinned: true,
-            online: false,
-            revealSide: .none,
-            deliveryState: .read,
-            groupedBackground: true,
-            avatar: .saved,
-            kind: .direct
-        ),
-        ChatThread(
             id: "memory-vault",
             title: "Memory Vault",
             headline: "Pinned your seminar notes",
@@ -730,15 +713,6 @@ extension ChatThread {
 
     var aiProfile: AIContactProfile {
         switch id {
-        case "aleksizz":
-            return AIContactProfile(
-                username: "@aleksizz",
-                roleTitle: "Friend & Peer",
-                rolePrompt: "You are Aleksizz, a real-life close friend chatting casually on Telegram in Russian. Keep replies brief, natural, authentic and informal.",
-                greeting: "Саня, здорова! Я на связи.",
-                status: "last seen recently",
-                bio: "last seen recently"
-            )
         case "memory-vault":
             return AIContactProfile(
                 username: "@memoryvault",
@@ -923,26 +897,6 @@ extension CallRecord {
 extension ConversationMessage {
     static func bootstrapConversation(for thread: ChatThread) -> [ConversationMessage] {
         switch thread.id {
-        case "aleksizz":
-            return [
-                ConversationMessage(id: "ak-1", side: .incoming, payload: .text("Я спать"), time: "23:37"),
-                ConversationMessage(id: "ak-2", side: .incoming, payload: .text("Мне в пол 4 вставать"), time: "23:37"),
-                ConversationMessage(id: "ak-3", side: .outgoing, payload: .text("А ну кстати"), time: "23:37"),
-                ConversationMessage(id: "ak-4", side: .outgoing, payload: .text("Возможно не с учебника"), time: "23:37"),
-                ConversationMessage(id: "ak-5", side: .outgoing, payload: .text("А с материалов каждой недели"), time: "23:37"),
-                ConversationMessage(id: "ak-6", side: .outgoing, payload: .text("Давай удачи"), time: "23:37"),
-                ConversationMessage(id: "ak-7", side: .incoming, payload: .text("Саня"), time: "16:26"),
-                ConversationMessage(id: "ak-8", side: .incoming, payload: .text("Спросил?"), time: "16:26"),
-                ConversationMessage(id: "ak-9", side: .outgoing, payload: .text("Я готовлю ща"), time: "16:26"),
-                ConversationMessage(id: "ak-10", side: .outgoing, payload: .text("Не спросил"), time: "16:26"),
-                ConversationMessage(id: "ak-11", side: .outgoing, payload: .text("Забыл"), time: "16:26"),
-                ConversationMessage(id: "ak-12", side: .outgoing, payload: .text("может ты напишешь раз вернулся?"), time: "16:32"),
-                ConversationMessage(id: "ak-13", side: .incoming, payload: .text("Я вещи собираю"), time: "16:33"),
-                ConversationMessage(id: "ak-14", side: .incoming, payload: .text("Мне бы это успеть"), time: "16:33"),
-                ConversationMessage(id: "ak-15", side: .outgoing, payload: .text("окей"), time: "16:33"),
-                ConversationMessage(id: "ak-16", side: .outgoing, payload: .text("я похавать приготовлю"), time: "16:33"),
-                ConversationMessage(id: "ak-17", side: .outgoing, payload: .text("и напишу"), time: "16:33")
-            ]
         case "memory-vault":
             return [
                 ConversationMessage(

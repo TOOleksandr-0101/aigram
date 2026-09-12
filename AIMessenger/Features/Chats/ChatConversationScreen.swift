@@ -56,8 +56,8 @@ struct ChatConversationScreen: View {
                         let isFirstInGroup = prevMessage == nil || prevMessage?.side != message.side
                         let isLastInGroup = nextMessage == nil || nextMessage?.side != message.side
 
-                        // Show date pill at top or between distinct message dates
-                        if thread.id == "aleksizz" ? index == 6 : (isFirstInGroup && index == 0) {
+                        // Show date pill at top
+                        if isFirstInGroup && index == 0 {
                             ChatDatePill(title: "Today")
                                 .padding(.vertical, 8)
                         }
@@ -141,10 +141,7 @@ struct ChatConversationScreen: View {
                     inputBar
                 }
             }
-            .onChange(of: messages.count) { newCount in
-                if thread.id == "aleksizz" && newCount <= 17 {
-                    return
-                }
+            .onChange(of: messages.count) { _ in
                 if let last = messages.last {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                         proxy.scrollTo(last.id, anchor: .bottom)
@@ -155,13 +152,6 @@ struct ChatConversationScreen: View {
                 guard let id = id else { return }
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                     proxy.scrollTo(id, anchor: .center)
-                }
-            }
-            .onAppear {
-                if thread.id == "aleksizz" {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                        proxy.scrollTo("ak-1", anchor: .top)
-                    }
                 }
             }
         }
@@ -549,7 +539,7 @@ struct ChatConversationScreen: View {
                         TypingHeaderDots()
                     }
                 } else {
-                    Text(thread.id == "aleksizz" ? "last seen recently" : (thread.isGroup ? thread.memberNamesText : thread.aiProfile.status))
+                    Text(thread.isGroup ? thread.memberNamesText : thread.aiProfile.status)
                         .font(.system(size: 12))
                         .foregroundStyle(Color.white.opacity(0.6))
                         .lineLimit(1)
@@ -984,8 +974,6 @@ struct ChatConversationScreen: View {
         }
 
         switch thread.id {
-        case "aleksizz":
-            return "Давай, я на связи. Как освободишься — маякни."
         case "seminar-circle":
             return """
             [Study Room] Могу быстро разложить это на понятный конспект и 5 карточек для повторения: \(draft)
