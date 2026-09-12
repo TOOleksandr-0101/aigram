@@ -178,6 +178,8 @@ struct PrivacySecurityScreen: View {
 
 struct DataStorageScreen: View {
     @Environment(\.dismiss) private var dismiss
+    @State private var cacheSizeString = MediaStorageService.shared.totalCacheSizeString()
+    @State private var showClearedAlert = false
     @State private var saveIncomingPhotos = false
     @State private var saveEditedPhotos = true
     @State private var gifsAutoplay = true
@@ -186,6 +188,45 @@ struct DataStorageScreen: View {
     var body: some View {
         DetailScreenContainer(title: "Data and Storage", backTitle: "Back", dismissAction: { dismiss() }) {
             VStack(spacing: 22) {
+                lightGroup {
+                    sectionTitle("Storage Usage")
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Media Cache")
+                                .font(.system(size: 16))
+                                .foregroundStyle(TelegramPalette.settingsPrimaryText)
+                            Text("Photos, videos, audio notes, and files")
+                                .font(.system(size: 13))
+                                .foregroundStyle(TelegramPalette.settingsSecondaryText)
+                        }
+                        Spacer()
+                        Text(cacheSizeString)
+                            .font(.system(size: 15))
+                            .foregroundStyle(TelegramPalette.settingsSecondaryText)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+
+                    divider
+
+                    Button {
+                        MediaStorageService.shared.clearMediaCache()
+                        cacheSizeString = MediaStorageService.shared.totalCacheSizeString()
+                        showClearedAlert = true
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    } label: {
+                        HStack {
+                            Text("Clear Entire Cache")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(TelegramPalette.destructiveRed)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        .frame(height: 44)
+                    }
+                    .buttonStyle(.plain)
+                }
+
                 lightGroup {
                     sectionTitle("Automatic media download")
                     chevronRow("Using Cellular", value: "Disabled")
@@ -213,15 +254,14 @@ struct DataStorageScreen: View {
                     sectionTitle("Voice calls")
                     chevronRow("Use Less Data", value: "Never")
                 }
-
-                lightGroup {
-                    chevronRow("Storage Usage", value: nil)
-                    divider
-                    chevronRow("Network Usage", value: nil)
-                }
             }
             .padding(.top, 16)
             .padding(.bottom, 32)
+        }
+        .alert("Cache Cleared", isPresented: $showClearedAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Local cached media files have been cleared successfully.")
         }
     }
 }
@@ -500,7 +540,7 @@ struct StickersScreen: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Sticker sets")
                         .font(.system(size: 14))
-                        .foregroundStyle(Color(hex: 0x636366))
+                        .foregroundStyle(TelegramPalette.settingsSecondaryText)
                         .padding(.horizontal, 16)
 
                     lightGroup {
@@ -523,10 +563,10 @@ struct StickersScreen: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(name)
                                         .font(.system(size: 17))
-                                        .foregroundStyle(.black)
+                                        .foregroundStyle(TelegramPalette.settingsPrimaryText)
                                     Text("25 stickers")
                                         .font(.system(size: 14))
-                                        .foregroundStyle(Color(hex: 0x636366))
+                                        .foregroundStyle(TelegramPalette.settingsSecondaryText)
                                 }
 
                                 Spacer()
@@ -570,7 +610,7 @@ struct DetailScreenContainer<Content: View>: View {
 
     var body: some View {
         ZStack {
-            settingsDetailBackground
+            TelegramPalette.backgroundPrimary.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 HStack {
@@ -584,25 +624,27 @@ struct DetailScreenContainer<Content: View>: View {
                         .foregroundStyle(TelegramPalette.accentBlue)
                         .padding(.horizontal, 12)
                         .frame(height: 38)
-                        .background(Color.white.opacity(0.62), in: Capsule(style: .continuous))
+                        .background(Color.white.opacity(0.12), in: Capsule(style: .continuous))
                     }
 
                     Spacer()
 
                     Text(title)
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(TelegramPalette.settingsPrimaryText)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.white)
 
                     Spacer()
 
                     Group {
                         if let trailingTitle {
-                            Text(trailingTitle)
-                                .font(.system(size: 17, weight: .medium))
-                                .foregroundStyle(TelegramPalette.accentBlue)
-                                .padding(.horizontal, 12)
-                                .frame(height: 38)
-                                .background(Color.white.opacity(0.62), in: Capsule(style: .continuous))
+                            Button(action: dismissAction) {
+                                Text(trailingTitle)
+                                    .font(.system(size: 17, weight: .medium))
+                                    .foregroundStyle(TelegramPalette.accentBlue)
+                                    .padding(.horizontal, 12)
+                                    .frame(height: 38)
+                                    .background(Color.white.opacity(0.12), in: Capsule(style: .continuous))
+                            }
                         } else {
                             Color.clear
                                 .frame(width: 56, height: 38)
@@ -618,7 +660,7 @@ struct DetailScreenContainer<Content: View>: View {
                 }
             }
         }
-        .preferredColorScheme(.light)
+        .preferredColorScheme(.dark)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarHidden(true)
         .navigationBarBackButtonHidden(true)

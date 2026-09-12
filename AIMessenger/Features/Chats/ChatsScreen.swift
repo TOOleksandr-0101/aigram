@@ -8,6 +8,8 @@ struct ChatsScreen: View {
     @State private var searchText = ""
     @State private var selectedFolder: ChatFolder = .all
     @State private var activeStory: TelegramStory?
+    @State private var isEditingChats = false
+    @State private var selectedThreadIds: Set<String> = []
 
     enum ChatFolder: String, CaseIterable, Identifiable {
         case all = "All Chats"
@@ -19,12 +21,20 @@ struct ChatsScreen: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            storiesBar
-            chatsList
+        ZStack(alignment: .bottom) {
+            VStack(spacing: 0) {
+                header
+                storiesBar
+                chatsList
+            }
+            .background(TelegramPalette.backgroundPrimary)
+
+            if isEditingChats {
+                editingBottomBar
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
-        .background(TelegramPalette.backgroundPrimary)
+        .animation(.easeInOut(duration: 0.25), value: isEditingChats)
         .sheet(isPresented: $showNewChatSheet) {
             NewChatSheet { selectedThread in
                 onOpenThread(selectedThread)
@@ -65,11 +75,25 @@ struct ChatsScreen: View {
     private var header: some View {
         VStack(spacing: 10) {
             HStack {
-                Button("Edit") {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                if isEditingChats {
+                    Button("Done") {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isEditingChats = false
+                            selectedThreadIds.removeAll()
+                        }
+                    }
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(TelegramPalette.accentBlue)
+                } else {
+                    Button("Edit") {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isEditingChats = true
+                        }
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    }
+                    .font(.system(size: 17))
+                    .foregroundStyle(TelegramPalette.accentBlue)
                 }
-                .font(.system(size: 17))
-                .foregroundStyle(.white)
 
                 Spacer()
 
@@ -79,13 +103,25 @@ struct ChatsScreen: View {
 
                 Spacer()
 
-                Button {
-                    showNewChatSheet = true
-                } label: {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(.white)
-                        .frame(width: 24, height: 24)
+                if isEditingChats {
+                    Button(selectedThreadIds.count == filteredThreads.count && !filteredThreads.isEmpty ? "Deselect" : "Select All") {
+                        if selectedThreadIds.count == filteredThreads.count {
+                            selectedThreadIds.removeAll()
+                        } else {
+                            selectedThreadIds = Set(filteredThreads.map { $0.thread.id })
+                        }
+                    }
+                    .font(.system(size: 15))
+                    .foregroundStyle(TelegramPalette.accentBlue)
+                } else {
+                    Button {
+                        showNewChatSheet = true
+                    } label: {
+                        Image(systemName: "square.and.pencil")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundStyle(.white)
+                            .frame(width: 24, height: 24)
+                    }
                 }
             }
             .padding(.horizontal, 15)
@@ -199,7 +235,7 @@ struct ChatsScreen: View {
                 } label: {
                     VStack(spacing: 6) {
                         ZStack(alignment: .bottomTrailing) {
-                            AvatarView(kind: .saved, showsOnlineDot: false)
+                            AvatarView(kind: .saved, showsOnlineDot: false, initials: aiWorkspace.initials)
                                 .frame(width: 58, height: 58)
                                 .overlay {
                                     Circle()
@@ -254,8 +290,8 @@ struct ChatsScreen: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
         }
         .background(TelegramPalette.backgroundElevated)
         .overlay(alignment: .bottom) {
@@ -287,10 +323,27 @@ struct ChatsScreen: View {
 
             ForEach(Array(filteredThreads.enumerated()), id: \.element.id) { index, summary in
                 Button {
-                    aiWorkspace.markAsRead(threadId: summary.thread.id)
-                    onOpenThread(summary.thread)
+                    if isEditingChats {
+                        if selectedThreadIds.contains(summary.thread.id) {
+                            selectedThreadIds.remove(summary.thread.id)
+                        } else {
+                            selectedThreadIds.insert(summary.thread.id)
+                        }
+                    } else {
+                        aiWorkspace.markAsRead(threadId: summary.thread.id)
+                        onOpenThread(summary.thread)
+                    }
                 } label: {
-                    ChatRow(summary: summary, showSeparator: index < filteredThreads.count - 1)
+                    HStack(spacing: 8) {
+                        if isEditingChats {
+                            Image(systemName: selectedThreadIds.contains(summary.thread.id) ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 22))
+                                .foregroundStyle(selectedThreadIds.contains(summary.thread.id) ? TelegramPalette.accentBlue : TelegramPalette.mutedText)
+                                .padding(.leading, 12)
+                                .transition(.move(edge: .leading).combined(with: .opacity))
+                        }
+                        ChatRow(summary: summary, showSeparator: index < filteredThreads.count - 1)
+                    }
                 }
                 .buttonStyle(.plain)
                 .listRowInsets(EdgeInsets())
@@ -348,6 +401,65 @@ struct ChatsScreen: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(TelegramPalette.backgroundPrimary)
+    }
+
+    private var editingBottomBar: some View {
+        HStack {
+            Button {
+                withAnimation {
+                    for id in selectedThreadIds {
+                        aiWorkspace.toggleMute(threadId: id)
+                    }
+                    selectedThreadIds.removeAll()
+                }
+            } label: {
+                Text("Mute")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(selectedThreadIds.isEmpty ? TelegramPalette.mutedText : TelegramPalette.accentBlue)
+            }
+            .disabled(selectedThreadIds.isEmpty)
+
+            Spacer()
+
+            Button {
+                withAnimation {
+                    for id in selectedThreadIds {
+                        aiWorkspace.togglePin(threadId: id)
+                    }
+                    selectedThreadIds.removeAll()
+                }
+            } label: {
+                Text("Pin")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(selectedThreadIds.isEmpty ? TelegramPalette.mutedText : TelegramPalette.accentBlue)
+            }
+            .disabled(selectedThreadIds.isEmpty)
+
+            Spacer()
+
+            Button {
+                withAnimation {
+                    for id in selectedThreadIds {
+                        aiWorkspace.deleteThread(threadId: id)
+                    }
+                    selectedThreadIds.removeAll()
+                }
+            } label: {
+                Text("Delete")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(selectedThreadIds.isEmpty ? TelegramPalette.mutedText : Color(hex: 0xFE3B30))
+            }
+            .disabled(selectedThreadIds.isEmpty)
+        }
+        .padding(.horizontal, 28)
+        .frame(height: 52)
+        .background(TelegramPalette.backgroundElevated)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(TelegramPalette.separator)
+                .frame(height: 0.5)
+        }
+        .padding(.bottom, 80)
     }
 
     private func swipeLabel(title: String, systemImage: String) -> some View {
@@ -485,6 +597,7 @@ private struct ChatRow: View {
 struct AvatarView: View {
     let kind: ChatAvatarKind
     let showsOnlineDot: Bool
+    var initials: String? = nil
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -508,15 +621,27 @@ struct AvatarView: View {
 
     @ViewBuilder
     private var content: some View {
-        switch kind {
-        case .saved:
-            LinearGradient(colors: [Color(hex: 0x66C6FF), Color(hex: 0x1F8CFF)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                .overlay {
-                    Image(systemName: "bookmark.fill")
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
-        case .visionCluster:
+        if let initials = initials, !initials.isEmpty {
+            LinearGradient(
+                colors: [Color(hex: 0xFF9966), Color(hex: 0xFF5E62)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .overlay {
+                Text(initials)
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(.white)
+            }
+        } else {
+            switch kind {
+            case .saved:
+                LinearGradient(colors: [Color(hex: 0x66C6FF), Color(hex: 0x1F8CFF)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    .overlay {
+                        Image(systemName: "bookmark.fill")
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+            case .visionCluster:
             Circle()
                 .fill(Color(hex: 0x151515))
                 .overlay {
@@ -608,6 +733,7 @@ struct AvatarView: View {
                         .font(.system(size: 22, weight: .semibold))
                         .foregroundStyle(.white)
                 }
+            }
         }
     }
 }
@@ -715,59 +841,59 @@ struct TelegramStory: Identifiable, Equatable {
             authorName: "My Story",
             authorAvatar: .saved,
             timeAgo: "Just now",
-            title: "Autonomous AI Dev Sprint",
-            text: "Building an AI-native Telegram experience in native SwiftUI. All agent personas operate with shared context and real-time streaming.",
-            tags: ["#SwiftUI", "#AutonomousAI", "#TelegramiOS"],
-            symbol: "sparkles",
-            gradientColors: [Color(hex: 0x1E3A8A), Color(hex: 0x3B82F6), Color(hex: 0x06B6D4)],
+            title: "Weekend Coastal Trail",
+            text: "Heading out for an early hike along the coast. Clear views, crisp ocean air, and quiet trails.",
+            tags: ["#Weekend", "#Coast", "#Hiking"],
+            symbol: "sun.max.fill",
+            gradientColors: [Color(hex: 0x0F2027), Color(hex: 0x203A43), Color(hex: 0x2C5364)],
             threadId: "saved-messages"
         ),
         TelegramStory(
-            id: "seminar-circle",
-            authorName: "Seminar Circle",
-            authorAvatar: .seminarCircle,
+            id: "ai-assistant",
+            authorName: "AI Assistant",
+            authorAvatar: .saved,
             timeAgo: "2h ago",
-            title: "Sprint v2.4 Consensus Reached",
-            text: "All 3 agents (Study Room, Research Desk, UX) approved the new async pipeline architecture. Zero blocking threads detected!",
-            tags: ["#SeminarCircle", "#MultiAgent", "#Consensus"],
-            symbol: "person.3.sequence.fill",
-            gradientColors: [Color(hex: 0x312E81), Color(hex: 0x4F46E5), Color(hex: 0x7C3AED)],
-            threadId: "seminar-circle"
+            title: "Morning Focus & Summary",
+            text: "Organized your tasks for today, summarized unread project threads, and prepped the calendar.",
+            tags: ["#Focus", "#Productivity", "#Assistant"],
+            symbol: "sparkles",
+            gradientColors: [Color(hex: 0x1E3A8A), Color(hex: 0x3B82F6), Color(hex: 0x06B6D4)],
+            threadId: "ai-assistant"
         ),
         TelegramStory(
-            id: "design-scout",
-            authorName: "Design Scout",
+            id: "design-studio",
+            authorName: "Design Studio",
             authorAvatar: .uxCopilot,
             timeAgo: "3h ago",
-            title: "Liquid Glass Dark Theme",
-            text: "Completed pixel-perfect Telegram iOS styling: procedural doodle wallpaper, custom speech tails, and circular video notes.",
-            tags: ["#TelegramUX", "#DesignSystem", "#iOS18"],
+            title: "Minimal Design Inspiration",
+            text: "Studying subtle blur effects, clean typography hierarchy, and dynamic gesture interactions.",
+            tags: ["#DesignSystem", "#Typography", "#MobileUI"],
             symbol: "paintbrush.pointed.fill",
             gradientColors: [Color(hex: 0x831843), Color(hex: 0xBE185D), Color(hex: 0xFB7185)],
-            threadId: "ux-copilot"
+            threadId: "design-scout"
         ),
         TelegramStory(
-            id: "product-coach",
-            authorName: "Product Coach",
+            id: "research-desk",
+            authorName: "Research Desk",
             authorAvatar: .researchBot,
             timeAgo: "5h ago",
-            title: "Retention Strategy 2026",
-            text: "Adding interactive AI voice notes and stickers increased simulation engagement by 320%. Users love tactile feedback!",
-            tags: ["#ProductMetrics", "#Growth", "#AI"],
-            symbol: "chart.line.uptrend.xyaxis",
+            title: "Weekend Reading Digest",
+            text: "Compiled top articles on distributed systems, modern memory management, and neural embeddings.",
+            tags: ["#Learning", "#Research", "#ReadingList"],
+            symbol: "book.fill",
             gradientColors: [Color(hex: 0x064E3B), Color(hex: 0x059669), Color(hex: 0x10B981)],
-            threadId: "product-coach"
+            threadId: "research-desk"
         ),
         TelegramStory(
             id: "code-partner",
             authorName: "Code Partner",
             authorAvatar: .codeAgents,
             timeAgo: "7h ago",
-            title: "Zero Compilation Warnings",
-            text: "All Swift concurrency actor boundaries and derived data paths have been isolated. Build times dropped to sub-3 seconds.",
-            tags: ["#SwiftConcurrency", "#Architecture", "#CleanCode"],
+            title: "Swift 6 Architecture Patterns",
+            text: "Exploring clean actor boundaries, structured concurrency, and responsive UI rendering.",
+            tags: ["#Swift", "#CleanCode", "#Engineering"],
             symbol: "chevron.left.forwardslash.chevron.right",
-            gradientColors: [Color(hex: 0x431407), Color(hex: 0xEA580C), Color(hex: 0xF97316)],
+            gradientColors: [Color(hex: 0x1A102F), Color(hex: 0x2E1065), Color(hex: 0x4C1D95)],
             threadId: "code-partner"
         )
     ]

@@ -181,10 +181,10 @@ struct ContactInfoScreen: View {
                 .padding(.top, 16)
                 .padding(.bottom, 40)
             }
-            .background(TelegramPalette.groupedBackground)
+            .background(TelegramPalette.backgroundPrimary)
         }
-        .background(TelegramPalette.groupedBackground.ignoresSafeArea())
-        .preferredColorScheme(.light)
+        .background(TelegramPalette.backgroundPrimary.ignoresSafeArea())
+        .preferredColorScheme(.dark)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
         .fullScreenCover(isPresented: $isCallPresented) {
@@ -205,11 +205,11 @@ struct ContactInfoScreen: View {
 
             Text(contact.displayName)
                 .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(.black)
+                .foregroundStyle(.white)
 
             Text(contact.presence.label)
                 .font(.system(size: 15))
-                .foregroundStyle(contact.presence.isOnline ? TelegramPalette.accentBlue : Color(hex: 0x636366))
+                .foregroundStyle(contact.presence.isOnline ? TelegramPalette.accentBlue : TelegramPalette.mutedText)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 8)
@@ -240,7 +240,7 @@ struct ContactInfoScreen: View {
             Button {
                 isCallPresented = true
             } label: {
-                PlainTextRow(title: "Start Voice Session", titleColor: TelegramPalette.accentBlue)
+                PlainTextRow(title: "Start Audio Call", titleColor: TelegramPalette.accentBlue)
             }
             .buttonStyle(.plain)
 
@@ -274,17 +274,17 @@ struct ContactInfoScreen: View {
         Button(role: .destructive) {
             showDeleteConfirmation = true
         } label: {
-            destructiveButton(title: "Remove Agent")
+            destructiveButton(title: "Delete Contact")
         }
         .buttonStyle(.plain)
-        .confirmationDialog("Remove Agent", isPresented: $showDeleteConfirmation) {
-            Button("Remove Agent", role: .destructive) {
+        .confirmationDialog("Delete Contact", isPresented: $showDeleteConfirmation) {
+            Button("Delete Contact", role: .destructive) {
                 aiWorkspace.removeContact(contactId: contact.id)
                 dismiss()
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Are you sure you want to remove \(contact.displayName)?")
+            Text("Are you sure you want to delete \(contact.displayName)?")
         }
     }
 
@@ -294,7 +294,7 @@ struct ContactInfoScreen: View {
             .foregroundStyle(Color(hex: 0xFE3B30))
             .frame(maxWidth: .infinity)
             .frame(height: 44)
-            .background(Color.white)
+            .background(TelegramPalette.backgroundElevated)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .padding(.horizontal, 12)
     }
@@ -317,7 +317,7 @@ struct ContactInfoScreen: View {
 
             Text(title)
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(.black)
+                .foregroundStyle(.white)
 
             Spacer()
 
@@ -327,10 +327,10 @@ struct ContactInfoScreen: View {
         }
         .padding(.horizontal, 12)
         .frame(height: 44)
-        .background(Color(hex: 0xF6F6F6))
+        .background(TelegramPalette.backgroundElevated)
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(Color.black.opacity(0.12))
+                .fill(TelegramPalette.separator)
                 .frame(height: 0.5)
         }
     }
@@ -362,9 +362,9 @@ struct EditableContactInfoScreen: View {
 
                 Spacer()
 
-                Text("Info")
+                Text("Edit Info")
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(.white)
 
                 Spacer()
 
@@ -377,10 +377,10 @@ struct EditableContactInfoScreen: View {
             }
             .padding(.horizontal, 16)
             .frame(height: 44)
-            .background(Color(hex: 0xF6F6F6))
+            .background(TelegramPalette.backgroundElevated)
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(Color.black.opacity(0.12))
+                    .fill(TelegramPalette.separator)
                     .frame(height: 0.5)
             }
 
@@ -391,22 +391,23 @@ struct EditableContactInfoScreen: View {
                             AvatarView(kind: contact.avatar, showsOnlineDot: false)
 
                             VStack(spacing: 16) {
-                                TextField("Agent name", text: $displayName)
+                                TextField("Name", text: $displayName)
                                     .font(.system(size: 17))
+                                    .foregroundStyle(.white)
                                 DividerLine()
                                 Text(contact.username)
                                     .font(.system(size: 17))
-                                    .foregroundStyle(Color(hex: 0x636366))
+                                    .foregroundStyle(TelegramPalette.mutedText)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }
                         .padding(.horizontal, 15)
                         .padding(.vertical, 13)
-                        .background(Color.white)
+                        .background(TelegramPalette.backgroundElevated)
 
-                        Text("Rename the agent or update the note you keep for it locally.")
+                        Text("Update contact details and local notes.")
                             .font(.system(size: 14))
-                            .foregroundStyle(Color(hex: 0x636366))
+                            .foregroundStyle(TelegramPalette.mutedText)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 16)
                             .padding(.top, 8)
@@ -418,12 +419,12 @@ struct EditableContactInfoScreen: View {
                         HStack(alignment: .top) {
                             Text("note")
                                 .font(.system(size: 15))
-                                .foregroundStyle(Color(hex: 0x636366))
+                                .foregroundStyle(TelegramPalette.mutedText)
                                 .frame(width: 86, alignment: .leading)
 
                             TextField("Add a note", text: $bio, axis: .vertical)
                                 .font(.system(size: 17))
-                                .foregroundStyle(.black)
+                                .foregroundStyle(.white)
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
@@ -436,18 +437,18 @@ struct EditableContactInfoScreen: View {
                     Button(role: .destructive) {
                         showDeleteConfirmation = true
                     } label: {
-                        Text("Delete Agent")
+                        Text("Delete Contact")
                             .font(.system(size: 17))
                             .foregroundStyle(Color(hex: 0xFE3B30))
                             .frame(maxWidth: .infinity)
                             .frame(height: 44)
-                            .background(Color.white)
+                            .background(TelegramPalette.backgroundElevated)
                             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                             .padding(.horizontal, 12)
                     }
                     .buttonStyle(.plain)
-                    .confirmationDialog("Delete Agent", isPresented: $showDeleteConfirmation) {
-                        Button("Delete Agent", role: .destructive) {
+                    .confirmationDialog("Delete Contact", isPresented: $showDeleteConfirmation) {
+                        Button("Delete Contact", role: .destructive) {
                             aiWorkspace.removeContact(contactId: contact.id)
                             dismiss()
                         }
@@ -459,9 +460,10 @@ struct EditableContactInfoScreen: View {
                 .padding(.top, 16)
                 .padding(.bottom, 32)
             }
-            .background(TelegramPalette.groupedBackground)
+            .background(TelegramPalette.backgroundPrimary)
         }
-        .background(TelegramPalette.groupedBackground.ignoresSafeArea())
+        .background(TelegramPalette.backgroundPrimary.ignoresSafeArea())
+        .preferredColorScheme(.dark)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
     }
@@ -708,7 +710,7 @@ private struct LightGroupCard<Content: View>: View {
         VStack(spacing: 0) {
             content
         }
-        .background(Color.white)
+        .background(TelegramPalette.backgroundElevated)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .padding(.horizontal, 12)
     }
@@ -717,7 +719,7 @@ private struct LightGroupCard<Content: View>: View {
 private struct DividerLine: View {
     var body: some View {
         Rectangle()
-            .fill(Color.black.opacity(0.08))
+            .fill(TelegramPalette.separator)
             .frame(height: 0.5)
             .padding(.leading, 16)
     }
@@ -732,12 +734,12 @@ private struct InfoValueRow: View {
         HStack(alignment: multiline ? .top : .center) {
             Text(title)
                 .font(.system(size: 15))
-                .foregroundStyle(Color(hex: 0x636366))
+                .foregroundStyle(TelegramPalette.textSecondary)
                 .frame(width: 86, alignment: .leading)
 
             Text(value)
                 .font(.system(size: 17))
-                .foregroundStyle(.black)
+                .foregroundStyle(TelegramPalette.textPrimary)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: multiline)
 
@@ -772,19 +774,19 @@ private struct ChevronValueRow: View {
         HStack {
             Text(title)
                 .font(.system(size: 17))
-                .foregroundStyle(.black)
+                .foregroundStyle(TelegramPalette.textPrimary)
 
             Spacer()
 
             if let value {
                 Text(value)
                     .font(.system(size: 17))
-                    .foregroundStyle(Color.black.opacity(0.6))
+                    .foregroundStyle(TelegramPalette.textSecondary)
             }
 
             Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Color(hex: 0xC7C7CC))
+                .foregroundStyle(TelegramPalette.textSecondary.opacity(0.6))
         }
         .padding(.horizontal, 16)
         .frame(height: 44)

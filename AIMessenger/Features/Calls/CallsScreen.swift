@@ -1,21 +1,45 @@
 import SwiftUI
 
 struct CallsScreen: View {
-    private let calls = CallRecord.sampleCalls
+    @EnvironmentObject private var aiWorkspace: AIWorkspace
     @State private var activeCallRecord: CallRecord?
+    @State private var selectedTab: CallFilter = .all
+    @State private var isEditing = false
+    @State private var showClearConfirmation = false
+
+    enum CallFilter: String, CaseIterable, Identifiable {
+        case all = "All"
+        case missed = "Missed"
+        var id: String { rawValue }
+    }
+
+    private var filteredCalls: [CallRecord] {
+        switch selectedTab {
+        case .all:
+            return aiWorkspace.callRecords
+        case .missed:
+            return aiWorkspace.callRecords.filter { $0.direction == .missed }
+        }
+    }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
                 topBar
 
-                ForEach(Array(calls.enumerated()), id: \.element.id) { index, call in
-                    Button {
-                        activeCallRecord = call
-                    } label: {
-                        callRow(call: call, showSeparator: index < calls.count - 1)
+                if filteredCalls.isEmpty {
+                    emptyStateView
+                } else {
+                    ForEach(Array(filteredCalls.enumerated()), id: \.element.id) { index, call in
+                        Button {
+                            if !isEditing {
+                                activeCallRecord = call
+                            }
+                        } label: {
+                            callRow(call: call, showSeparator: index < filteredCalls.count - 1)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
             .padding(.bottom, 96)
@@ -23,50 +47,111 @@ struct CallsScreen: View {
         .background(TelegramPalette.backgroundPrimary)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
+        .confirmationDialog("Clear Recent Calls", isPresented: $showClearConfirmation, titleVisibility: .visible) {
+            Button("Clear All Recent Calls", role: .destructive) {
+                withAnimation {
+                    aiWorkspace.clearAllCalls()
+                    isEditing = false
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        }
         .fullScreenCover(item: $activeCallRecord) { call in
             TelegramCallView(
                 contactName: call.name,
                 avatar: call.avatar,
                 roleTitle: call.detail,
-                greetingText: "Hey! Connected with \(call.name). Ready to discuss your questions."
+                greetingText: "Hey! Connected with \(call.name). Ready to talk."
             )
         }
         .onAppear {
             if ProcessInfo.processInfo.arguments.contains("-testCall") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    activeCallRecord = calls.first
+                    activeCallRecord = aiWorkspace.callRecords.first
                 }
             }
         }
     }
 
-    private var topBar: some View {
+    private var emptyStateView: some View {
         VStack(spacing: 12) {
+            Spacer(minLength: 60)
+            Image(systemName: selectedTab == .missed ? "phone.down.circle" : "phone.circle")
+                .font(.system(size: 52))
+                .foregroundStyle(TelegramPalette.mutedText.opacity(0.6))
+
+            Text(selectedTab == .missed ? "No Missed Calls" : "No Recent Calls")
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(.white)
+
+            Text(selectedTab == .missed ? "You have no missed calls." : "Your recent voice and AI calls will appear here.")
+                .font(.system(size: 14))
+                .foregroundStyle(TelegramPalette.mutedText)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+    }
+
+    private var topBar: some View {
+        VStack(spacing: 8) {
             HStack {
-                Button("Edit") { }
+                if isEditing {
+                    Button("Clear") {
+                        showClearConfirmation = true
+                    }
                     .font(.system(size: 17))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color(hex: 0xFE3B30))
+                } else {
+                    Button("Edit") {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isEditing = true
+                        }
+                    }
+                    .font(.system(size: 17))
+                    .foregroundStyle(TelegramPalette.accentBlue)
+                }
 
                 Spacer()
 
-                Text("Calls")
+                Picker("Call Type", selection: $selectedTab) {
+                    ForEach(CallFilter.allCases) { filter in
+                        Text(filter.rawValue).tag(filter)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 170)
+
+                Spacer()
+
+                if isEditing {
+                    Button("Done") {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isEditing = false
+                        }
+                    }
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(.white)
-
-                Spacer()
-
-                Button {
-                    activeCallRecord = calls.first
-                } label: {
-                    Image(systemName: "waveform.badge.plus")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(.white)
+                    .foregroundStyle(TelegramPalette.accentBlue)
+                } else {
+                    Button {
+                        if let first = aiWorkspace.callRecords.first {
+                            activeCallRecord = first
+                        } else {
+                            aiWorkspace.logCall(name: "AI Assistant", detail: "Incoming Audio", avatar: .saved, direction: .incoming)
+                            activeCallRecord = aiWorkspace.callRecords.first
+                        }
+                    } label: {
+                        Image(systemName: "phone.badge.plus")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundStyle(TelegramPalette.accentBlue)
+                    }
                 }
             }
             .padding(.horizontal, 16)
         }
         .padding(.top, 8)
-        .padding(.bottom, 12)
+        .padding(.bottom, 10)
         .background(TelegramPalette.backgroundElevated)
         .overlay(alignment: .bottom) {
             Rectangle()
@@ -77,6 +162,19 @@ struct CallsScreen: View {
 
     private func callRow(call: CallRecord, showSeparator: Bool) -> some View {
         HStack(spacing: 10) {
+            if isEditing {
+                Button {
+                    withAnimation {
+                        aiWorkspace.deleteCall(id: call.id)
+                    }
+                } label: {
+                    Image(systemName: "minus.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(Color(hex: 0xFE3B30))
+                }
+                .transition(.move(edge: .leading).combined(with: .opacity))
+            }
+
             AvatarView(kind: call.avatar, showsOnlineDot: false)
 
             VStack(alignment: .leading, spacing: 3) {
@@ -101,7 +199,7 @@ struct CallsScreen: View {
                     .foregroundStyle(TelegramPalette.accentBlue)
             }
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 12)
         .frame(height: 76)
         .background(TelegramPalette.backgroundPrimary)
         .overlay(alignment: .bottom) {
@@ -109,7 +207,7 @@ struct CallsScreen: View {
                 Rectangle()
                     .fill(TelegramPalette.separator)
                     .frame(height: 0.5)
-                    .padding(.leading, 79)
+                    .padding(.leading, isEditing ? 104 : 79)
             }
         }
     }
@@ -118,6 +216,7 @@ struct CallsScreen: View {
 struct CallsScreen_Previews: PreviewProvider {
     static var previews: some View {
         CallsScreen()
+            .environmentObject(AIWorkspace())
     }
 }
 
@@ -140,10 +239,10 @@ struct TelegramCallView: View {
     @State private var selectedTimbre: VoiceTimbre = VoiceTimbre.presets[0]
 
     private let samplePromptChips = [
-        "Review Swift 6 Concurrency",
-        "What is in Q3 Roadmap?",
-        "Explain On-Device Inference",
-        "Design System 16pt Grid"
+        "How can I help you today?",
+        "Summarize my recent notes",
+        "Draft a message update",
+        "Brainstorm creative ideas"
     ]
 
     init(

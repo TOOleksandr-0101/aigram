@@ -106,7 +106,7 @@ struct EditProfileScreen: View {
                 }
                 .buttonStyle(.plain)
 
-                VStack(spacing: 16) {
+                VStack(spacing: 12) {
                     TextField("Display name", text: $aiWorkspace.displayName)
                         .font(.system(size: 17))
                         .foregroundStyle(.white)
@@ -120,10 +120,19 @@ struct EditProfileScreen: View {
                         .foregroundStyle(.white)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+
+                    Rectangle()
+                        .fill(TelegramPalette.separator)
+                        .frame(height: 0.5)
+
+                    TextField("Phone", text: $aiWorkspace.phoneNumber)
+                        .font(.system(size: 17))
+                        .foregroundStyle(.white)
+                        .keyboardType(.phonePad)
                 }
             }
             .padding(.horizontal, 15)
-            .frame(height: 92)
+            .padding(.vertical, 14)
             .background(TelegramPalette.backgroundElevated)
 
             Text("Choose how your workspace appears across chats, calls, and contacts.")
@@ -220,17 +229,17 @@ struct EditProfileScreen: View {
                 sheetDivider
                 sheetOption("Remove Photo", color: Color(hex: 0xFE3B30))
             }
-            .background(Color.white, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+            .background(TelegramPalette.backgroundElevated, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
 
             Button {
                 showPhotoSheet = false
             } label: {
                 Text("Cancel")
-                    .font(.system(size: 20, weight: .medium))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(TelegramPalette.accentBlue)
                     .frame(maxWidth: .infinity)
                     .frame(height: 57)
-                    .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(TelegramPalette.backgroundElevated, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
             .buttonStyle(.plain)
         }
@@ -240,7 +249,7 @@ struct EditProfileScreen: View {
 
     private var sheetDivider: some View {
         Rectangle()
-            .fill(Color.black.opacity(0.08))
+            .fill(TelegramPalette.separator)
             .frame(height: 0.5)
     }
 

@@ -102,7 +102,7 @@ struct SettingsHubScreen: View {
                     .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(.white)
 
-                Text(aiWorkspace.connectionLabel)
+                Text(aiWorkspace.phoneNumber)
                     .font(.system(size: 14))
                     .foregroundStyle(TelegramPalette.mutedText)
 

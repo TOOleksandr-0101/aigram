@@ -19,6 +19,48 @@ final class MediaStorageService {
         storageDirectory
     }
 
+    func totalCacheSize() -> Int64 {
+        guard let files = try? fileManager.contentsOfDirectory(at: storageDirectory, includingPropertiesForKeys: [.fileSizeKey]) else { return 0 }
+        var total: Int64 = 0
+        for file in files {
+            if let size = (try? file.resourceValues(forKeys: [.fileSizeKey]))?.fileSize {
+                total += Int64(size)
+            }
+        }
+        return total
+    }
+
+    func totalCacheSizeString() -> String {
+        let size = totalCacheSize()
+        let mb = Double(size) / (1024.0 * 1024.0)
+        if mb >= 1.0 {
+            return String(format: "%.1f MB", mb)
+        } else {
+            let kb = Double(size) / 1024.0
+            return String(format: "%.0f KB", kb)
+        }
+    }
+
+    func clearMediaCache() {
+        cache.removeAllObjects()
+        if let files = try? fileManager.contentsOfDirectory(at: storageDirectory, includingPropertiesForKeys: nil) {
+            for file in files {
+                try? fileManager.removeItem(at: file)
+            }
+        }
+    }
+
+    func savedImageFiles() -> [String] {
+        guard let files = try? fileManager.contentsOfDirectory(at: storageDirectory, includingPropertiesForKeys: nil) else { return [] }
+        return files.compactMap { url -> String? in
+            let ext = url.pathExtension.lowercased()
+            if ["png", "jpg", "jpeg", "heic", "webp"].contains(ext) {
+                return url.lastPathComponent
+            }
+            return nil
+        }
+    }
+
     private init() {
         seedPresetAssetsIfNeeded()
     }

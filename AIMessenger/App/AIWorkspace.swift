@@ -17,7 +17,7 @@ private struct StoredConversationState: Codable {
 
 @MainActor
 final class AIWorkspace: ObservableObject {
-    private static let conversationSchemaVersion = 7
+    private static let conversationSchemaVersion = 8
 
     @Published var displayName: String {
         didSet { defaults.set(displayName, forKey: Keys.displayName) }
@@ -25,6 +25,10 @@ final class AIWorkspace: ObservableObject {
 
     @Published var username: String {
         didSet { defaults.set(username, forKey: Keys.username) }
+    }
+
+    @Published var phoneNumber: String {
+        didSet { defaults.set(phoneNumber, forKey: Keys.phoneNumber) }
     }
 
     @Published var bio: String {
@@ -61,6 +65,9 @@ final class AIWorkspace: ObservableObject {
 
     @Published var threads: [ChatThread] = ChatThread.sampleThreads
     @Published var contacts: [ContactProfile] = ContactProfile.sampleContacts
+    @Published var callRecords: [CallRecord] {
+        didSet { persistCallRecords() }
+    }
 
     @Published private var storedConversations: [String: StoredConversationState] {
         didSet { persistStoredConversations() }
@@ -70,9 +77,10 @@ final class AIWorkspace: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        self.displayName = defaults.string(forKey: Keys.displayName) ?? "My Space"
-        self.username = defaults.string(forKey: Keys.username) ?? "@my_space"
-        self.bio = defaults.string(forKey: Keys.bio) ?? "Private AI chat hub for study, coding, research, and design."
+        self.displayName = defaults.string(forKey: Keys.displayName) ?? "Oleksandr"
+        self.username = defaults.string(forKey: Keys.username) ?? "@oleksandr"
+        self.phoneNumber = defaults.string(forKey: Keys.phoneNumber) ?? "+1 (555) 019-2834"
+        self.bio = defaults.string(forKey: Keys.bio) ?? "Digital creator & iOS engineer."
         self.apiKey = defaults.string(forKey: Keys.apiKey) ?? ""
         self.modelSlug = defaults.string(forKey: Keys.modelSlug) ?? "qwen/qwen3.5-9b"
         if let provRaw = defaults.string(forKey: Keys.selectedProvider), let prov = LLMProviderKind(rawValue: provRaw) {
@@ -88,6 +96,7 @@ final class AIWorkspace: ObservableObject {
         } else {
             self.selectedWallpaper = .doodles
         }
+        self.callRecords = Self.loadCallRecords(from: defaults)
         if ProcessInfo.processInfo.arguments.contains("-resetStorage") {
             defaults.removeObject(forKey: Keys.storedConversations)
         }
@@ -259,42 +268,50 @@ final class AIWorkspace: ObservableObject {
         generateAIResponseIfNeeded(for: msg, in: thread)
     }
 
+    func clearChatHistory(for thread: ChatThread) {
+        storedConversations[thread.id] = makeStoredState(from: [])
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
     func analyzeDocument(message: ConversationMessage, in thread: ChatThread) {
         guard case let .document(name, size, ext, localFile) = message.payload else { return }
         let fileName = localFile ?? name
         let textContent = MediaStorageService.shared.readDocumentText(filename: fileName) ?? ""
 
         Task {
-            try? await Task.sleep(nanoseconds: 700_000_000)
+            try? await Task.sleep(nanoseconds: 600_000_000)
 
             let analysis: String
-            if ext == "swift" {
-                analysis = """
-                🧠 **Анализ кода «\(name)» (RAG-индекс: 100%)**:
-                1. **Конкурентность**: Использован глобальный актор `@globalActor actor AIGramCoreActor` для изоляции критических состояний.
-                2. **Потокобезопасность**: Протокол `MessageStreamDelegate` помечен как `Sendable`, предотвращая гонки данных при параллельной передаче токенов.
-                3. **Рекомендация**: На строке 21 в `dispatchAgentDiscussion` стоит добавить таймаут с отменой через `withThrowingTaskGroup`.
-                """
-            } else if ext == "md" {
-                analysis = """
-                🧠 **Анализ документа «\(name)» (RAG-индекс: 100%)**:
-                1. **Ключевой фокус**: Сочетание сверхбыстрого нативного Telegram UX с автономным слоем агентов.
-                2. **Milestone 2 (Live Duplex Voice)**: Архитектура полнодуплексного аудио готова к релизу.
-                3. **Оценка роадмапа**: План сбалансирован, риски регрессий минимизированы строгой типизацией Swift 6.
-                """
-            } else if ext == "json" {
-                analysis = """
-                🧠 **Анализ метрик «\(name)» (RAG-индекс: 100%)**:
-                1. **Cold start**: 142.5 ms (на 35% быстрее отраслевого бенчмарка).
-                2. **UI Frame rate**: Стабильные 120 FPS благодаря `SwiftUI` диффингу.
-                3. **Inference**: Скорость генерации 84.6 т/с полностью перекрывает потребности живого диалога.
-                """
+            if !textContent.isEmpty {
+                let lines = textContent.components(separatedBy: .newlines)
+                let wordCount = textContent.split { $0.isWhitespace || $0.isNewline }.count
+                let preview = String(textContent.prefix(250)).trimmingCharacters(in: .whitespacesAndNewlines)
+
+                if ext == "swift" || ext == "rs" || ext == "py" || ext == "js" || ext == "ts" {
+                    analysis = """
+                    📄 **Анализ кода «\(name)»** (\(size)):
+                    • Строк: \(lines.count)
+                    • Объём: \(textContent.count) симв.
+                    • Фрагмент:
+                    ```\(ext)
+                    \(preview)...
+                    ```
+                    Файл готов к обсуждению. Могу провести ревью или объяснить структуру.
+                    """
+                } else {
+                    analysis = """
+                    📄 **Анализ документа «\(name)»** (\(size)):
+                    • Объём: \(lines.count) строк, \(wordCount) слов
+                    • Превью:
+                    «\(preview)...»
+
+                    Документ прочитан. Задай любой вопрос по его содержанию!
+                    """
+                }
             } else {
-                let previewSnippet = String(textContent.prefix(200))
                 analysis = """
-                🧠 **RAG-анализ документа «\(name)» (\(size))**:
-                Файл успешно проанализирован. Ключевой контекст: "\(previewSnippet)..."
-                Все сущности извлечены в локальный граф знаний для контекстных ответов.
+                📄 **Документ «\(name)»** (\(size), .\(ext)) сохранён в локальном хранилище.
+                Готов к обработке и ответам на вопросы!
                 """
             }
 
@@ -305,7 +322,7 @@ final class AIWorkspace: ObservableObject {
                 side: .incoming,
                 payload: .text(analysis),
                 time: formatter.string(from: Date()),
-                authorName: thread.isGroup ? "Code Partner" : thread.title,
+                authorName: thread.title,
                 authorAvatar: thread.avatar,
                 replyToMessageId: message.id,
                 replyToSnippet: message.previewSnippet,
@@ -536,57 +553,42 @@ final class AIWorkspace: ObservableObject {
     private func contextualOfflineResponse(for message: ConversationMessage, in thread: ChatThread) -> String {
         switch message.payload {
         case .voice:
-            switch thread.id {
-            case "design-scout":
-                return "Прослушал голосовое сообщение. По визуальной части: предлагаю зафиксировать эту структуру компонентов и подготовить финальный макет для ревью."
-            case "product-coach":
-                return "Голосовое принял. По продуктовой воронке: идея отличная, давай включим этот сценарий в ближайший спринт и замерим конверсию первого дня."
-            case "code-partner":
-                return "Записал архитектурные требования из аудио. Реализуем на Swift concurrency с акторной изоляцией для надежности."
-            case "research-desk":
-                return "Голосовые тезисы зафиксированы. Добавил эти пункты в сравнительный отчет по моделям и бенчмаркам."
-            default:
-                return "Прослушал аудиозапись. Детали зафиксированы, готов приступать к следующему шагу."
-            }
+            return "Прослушал голосовое сообщение! Все тезисы зафиксированы, готов ответить или помочь с деталями."
         case let .photo(name, _):
-            switch thread.id {
-            case "design-scout":
-                return "Отличный референс (\(name))! Проверил сетку, контрастность и баланс белого пространства — композиция выглядит чисто. Рекомендую сохранить 18pt радиус скруглений."
-            case "product-coach":
-                return "Изучил макет (\(name)). Пользовательский сценарий считывается за 2 секунды. На следующем шаге стоит сделать акцентную кнопку действия более заметной."
-            case "code-partner":
-                return "Изучил схему (\(name)). Архитектура модулей логична, зависимости направлены верно. Можем безопасно раскатывать в продакшен."
-            case "research-desk":
-                return "Данные со схемы (\(name)) занесены в проект. Отличная наглядная визуализация параметров."
-            default:
-                return "Изображение (\(name)) получено и сохранено в локальном хранилище AIGram. Готов разобрать детали."
-            }
+            return "Изображение (\(name)) получено и сохранено в истории чата. Готов разобрать детали."
         case .videoNote:
-            switch thread.id {
-            case "design-scout":
-                return "Посмотрел видеосообщение! Динамика анимаций и жесты смахивания работают плавно. Рекомендую сохранить такой темп взаимодействия."
-            case "product-coach":
-                return "Видео-заметку принял. Отличный питч! Зафиксировал все требования по онбордингу и метрикам удержания."
-            case "code-partner":
-                return "Видео посмотрел. Конвейер сборки и рендеринг видео-кружочка отрабатывают стабильно. Можем добавлять в продакшен."
-            default:
-                return "Посмотрел видео-заметку! Отличная подача. Зафиксировал всё в задачах проекта."
-            }
+            return "Посмотрел видеосообщение! Отличная запись, зафиксировал информацию в контексте."
         case let .widget(widget):
-            return "Синхронизировал данные интерактивного виджета «\(widget.title)». Текущий статус: [\(widget.currentStatus)]."
+            return "Данные виджета «\(widget.title)» обновлены: [\(widget.currentStatus)]."
         case let .document(name, size, ext, _):
-            if ext == "swift" {
-                return "Изучил исходный код файла «\(name)» (\(size)). Архитектура использует Swift 6 Concurrency: акторы, @globalActor и Sendable-модели корректно изолируют состояние."
-            } else if ext == "md" {
-                return "Ознакомился с документом «\(name)» (\(size)). Структура роадмапа понятна, этапы Q3-Q4 выстроены логично."
-            } else if ext == "json" {
-                return "Разобрал телеметрию из «\(name)» (\(size)). Задержка 18.2ms и фреймрейт 120 FPS подтверждают стабильность сборки."
-            } else {
-                return "Документ «\(name)» (\(size)) получен и проиндексирован в локальной базе знаний RAG."
-            }
+            return "Документ «\(name)» (\(size), .\(ext)) успешно сохранён. Готов разобрать его содержимое!"
         default:
-            return "Сообщение принято и сохранено."
+            return "Сообщение принято. Чем могу помочь?"
         }
+    }
+
+    func deleteCall(id: String) {
+        callRecords.removeAll { $0.id == id }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    func clearAllCalls() {
+        callRecords.removeAll()
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    func logCall(name: String, detail: String, avatar: ChatAvatarKind, direction: CallDirection) {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        let record = CallRecord(
+            id: UUID().uuidString,
+            name: name,
+            detail: detail,
+            date: formatter.string(from: Date()),
+            avatar: avatar,
+            direction: direction
+        )
+        callRecords.insert(record, at: 0)
     }
 
     func addNewAgent(name: String, username: String, role: String, bio: String, avatar: ChatAvatarKind) {
@@ -851,21 +853,32 @@ final class AIWorkspace: ObservableObject {
         }
     }
 
+    private func persistCallRecords() {
+        guard let data = try? JSONEncoder().encode(callRecords) else { return }
+        defaults.set(data, forKey: Keys.callRecords)
+    }
+
+    private static func loadCallRecords(from defaults: UserDefaults) -> [CallRecord] {
+        guard let data = defaults.data(forKey: Keys.callRecords),
+              let records = try? JSONDecoder().decode([CallRecord].self, from: data) else {
+            return CallRecord.sampleCalls
+        }
+        return records
+    }
+
     private func seedDate(for thread: ChatThread) -> Date {
         let calendar = Calendar.current
         let now = Date()
 
         switch thread.id {
-        case "design-scout":
-            return calendar.date(byAdding: .minute, value: -12, to: now) ?? now
-        case "product-coach":
-            return calendar.date(byAdding: .hour, value: -1, to: now) ?? now
-        case "study-room":
-            return calendar.date(byAdding: .hour, value: -3, to: now) ?? now
-        case "visual-lab":
-            return calendar.date(byAdding: .hour, value: -5, to: now) ?? now
+        case "ai-assistant":
+            return calendar.date(byAdding: .minute, value: -15, to: now) ?? now
         case "code-partner":
             return calendar.date(byAdding: .day, value: -1, to: now) ?? now
+        case "research-desk":
+            return calendar.date(byAdding: .day, value: -2, to: now) ?? now
+        case "design-scout":
+            return calendar.date(byAdding: .day, value: -3, to: now) ?? now
         default:
             return now
         }
@@ -875,6 +888,7 @@ final class AIWorkspace: ObservableObject {
 private enum Keys {
     static let displayName = "aiworkspace.profile.displayName"
     static let username = "aiworkspace.profile.username"
+    static let phoneNumber = "aiworkspace.profile.phoneNumber"
     static let bio = "aiworkspace.profile.bio"
     static let apiKey = "aiworkspace.openrouter.apiKey"
     static let modelSlug = "aiworkspace.openrouter.modelSlug"
@@ -885,4 +899,5 @@ private enum Keys {
     static let storedConversations = "aiworkspace.conversations.state"
     static let conversationSchemaVersion = "aiworkspace.conversations.schemaVersion"
     static let selectedWallpaper = "aiworkspace.chat.selectedWallpaper"
+    static let callRecords = "aiworkspace.calls.records"
 }

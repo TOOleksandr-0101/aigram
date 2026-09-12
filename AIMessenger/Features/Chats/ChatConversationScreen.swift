@@ -21,6 +21,7 @@ struct ChatConversationScreen: View {
     @State private var isStickerSheetPresented = false
     @State private var showWidgetPickerSheet = false
     @State private var showDocumentPickerSheet = false
+    @State private var showFileImporter = false
     @State private var readingDocumentItem: DocumentViewItem?
     @State private var replyingToMessage: ConversationMessage?
     @State private var targetScrollMessageId: String?
@@ -280,41 +281,20 @@ struct ChatConversationScreen: View {
                 }
             }
         }
+        .fileImporter(
+            isPresented: $showFileImporter,
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: false,
+            onCompletion: handleFileImportResult
+        )
         .sheet(isPresented: $showAttachmentSheet) {
-            AttachmentPickerSheet(
-                onSendPhoto: { name, size in
-                    aiWorkspace.sendPhoto(name: name, size: size, localFileName: name, to: thread)
-                    messages = aiWorkspace.messages(for: thread)
-                },
-                onSendFile: { name, size in
-                    aiWorkspace.sendAttachment(name: name, size: size, to: thread)
-                    messages = aiWorkspace.messages(for: thread)
-                },
-                onOpenWidgetPicker: {
-                    showWidgetPickerSheet = true
-                },
-                onOpenDocumentPicker: {
-                    showDocumentPickerSheet = true
-                }
-            )
+            attachmentSheetView
         }
         .sheet(isPresented: $showDocumentPickerSheet) {
-            DocumentPickerSheet(
-                onSelectPreset: { name, size, ext in
-                    aiWorkspace.sendDocument(name: name, size: size, ext: ext, localFileName: name, to: thread)
-                    messages = aiWorkspace.messages(for: thread)
-                },
-                onBrowseDeviceFiles: {
-                    aiWorkspace.sendDocument(name: "Architecture_Spec.swift", size: "1.4 KB", ext: "swift", localFileName: "Architecture_Spec.swift", to: thread)
-                    messages = aiWorkspace.messages(for: thread)
-                }
-            )
+            documentPickerSheetView
         }
         .sheet(isPresented: $showWidgetPickerSheet) {
-            WidgetPickerSheet { widget in
-                aiWorkspace.sendInteractiveWidget(widget, to: thread)
-                messages = aiWorkspace.messages(for: thread)
-            }
+            widgetPickerSheetView
         }
         .fullScreenCover(item: $readingDocumentItem) { item in
             DocumentReaderModal(item: item)
@@ -326,19 +306,104 @@ struct ChatConversationScreen: View {
             MediaViewerModal(name: item.name)
         }
         .fullScreenCover(isPresented: $isCallPresented) {
-            TelegramCallView(
-                contactName: thread.title,
-                avatar: thread.avatar,
-                roleTitle: thread.aiProfile.roleTitle,
-                greetingText: thread.aiProfile.greeting
-            )
+            callView
         }
         .sheet(isPresented: $isStickerSheetPresented) {
-            StickerEmojiSheet { name, emoji in
-                aiWorkspace.sendSticker(name: name, emoji: emoji, to: thread)
+            stickerSheetView
+        }
+    }
+
+    private func handleFileImportResult(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            guard url.startAccessingSecurityScopedResource() else { return }
+            defer { url.stopAccessingSecurityScopedResource() }
+
+            let filename = url.lastPathComponent
+            let ext = url.pathExtension.lowercased()
+            let fileData = (try? Data(contentsOf: url)) ?? Data()
+            MediaStorageService.shared.saveDocument(data: fileData, filename: filename)
+            let sizeStr = MediaStorageService.shared.fileSizeString(for: filename)
+
+            aiWorkspace.sendDocument(
+                name: filename,
+                size: sizeStr,
+                ext: ext.isEmpty ? "file" : ext,
+                localFileName: filename,
+                to: thread
+            )
+            messages = aiWorkspace.messages(for: thread)
+        case .failure(let error):
+            print("[FileImporter] Error: \(error)")
+        }
+    }
+
+    @ViewBuilder
+    private var attachmentSheetView: some View {
+        AttachmentPickerSheet(
+            onSendPhoto: { name, size in
+                aiWorkspace.sendPhoto(name: name, size: size, localFileName: name, to: thread)
+                messages = aiWorkspace.messages(for: thread)
+            },
+            onBrowseFiles: {
+                showFileImporter = true
+            },
+            onOpenDocumentPicker: {
+                showDocumentPickerSheet = true
+            },
+            onSendLocation: {
+                aiWorkspace.sendTextMessage("📍 Shared Location: 37.7749° N, 122.4194° W (San Francisco, CA)", to: thread)
+                messages = aiWorkspace.messages(for: thread)
+            },
+            onSendContact: {
+                aiWorkspace.sendTextMessage("👤 Contact: \(aiWorkspace.displayName) (\(aiWorkspace.phoneNumber))", to: thread)
+                messages = aiWorkspace.messages(for: thread)
+            },
+            onSendPoll: {
+                aiWorkspace.sendTextMessage("📊 Poll: Team Priorities\n▫️ 1. Polish UI and performance\n▫️ 2. Offline LLM integration\n▫️ 3. Multi-platform sync", to: thread)
                 messages = aiWorkspace.messages(for: thread)
             }
+        )
+    }
+
+    @ViewBuilder
+    private var documentPickerSheetView: some View {
+        DocumentPickerSheet(
+            onSelectPreset: { name, size, ext in
+                aiWorkspace.sendDocument(name: name, size: size, ext: ext, localFileName: name, to: thread)
+                messages = aiWorkspace.messages(for: thread)
+            },
+            onBrowseDeviceFiles: {
+                showFileImporter = true
+            }
+        )
+    }
+
+    @ViewBuilder
+    private var widgetPickerSheetView: some View {
+        WidgetPickerSheet { widget in
+            aiWorkspace.sendInteractiveWidget(widget, to: thread)
+            messages = aiWorkspace.messages(for: thread)
         }
+    }
+
+    @ViewBuilder
+    private var stickerSheetView: some View {
+        StickerEmojiSheet { name, emoji in
+            aiWorkspace.sendSticker(name: name, emoji: emoji, to: thread)
+            messages = aiWorkspace.messages(for: thread)
+        }
+    }
+
+    @ViewBuilder
+    private var callView: some View {
+        TelegramCallView(
+            contactName: thread.title,
+            avatar: thread.avatar,
+            roleTitle: thread.aiProfile.roleTitle,
+            greetingText: thread.aiProfile.greeting
+        )
     }
 
     private var currentPinnedMessage: ConversationMessage? {
@@ -2672,21 +2737,15 @@ private struct MediaViewerModal: View {
 // MARK: - Attachment Picker Sheet
 private struct AttachmentPickerSheet: View {
     let onSendPhoto: (String, String) -> Void
-    let onSendFile: (String, String) -> Void
-    var onOpenWidgetPicker: (() -> Void)? = nil
+    var onBrowseFiles: (() -> Void)? = nil
     var onOpenDocumentPicker: (() -> Void)? = nil
+    var onSendLocation: (() -> Void)? = nil
+    var onSendContact: (() -> Void)? = nil
+    var onSendPoll: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedPhotoPickerItem: PhotosPickerItem?
-
-    private let sampleGalleryPhotos: [(title: String, icon: String, color: Color)] = [
-        ("Architecture_V2.png", "server.rack", Color(hex: 0x3B82F6)),
-        ("Wireframe_Screen.png", "rectangle.split.3x3", Color(hex: 0x8B5CF6)),
-        ("Design_Tokens.png", "paintbrush.pointed.fill", Color(hex: 0xEC4899)),
-        ("Dashboard_Metrics.png", "chart.bar.xaxis", Color(hex: 0x10B981)),
-        ("AI_Cluster_Map.png", "cpu.fill", Color(hex: 0xF59E0B)),
-        ("Mobile_Mockup.png", "iphone", Color(hex: 0x06B6D4))
-    ]
+    @State private var savedImages: [String] = []
 
     var body: some View {
         VStack(spacing: 20) {
@@ -2718,39 +2777,50 @@ private struct AttachmentPickerSheet: View {
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
-                        ForEach(sampleGalleryPhotos, id: \.title) { item in
+                        PhotosPicker(selection: $selectedPhotoPickerItem, matching: .images) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(TelegramPalette.searchFill)
+                                    .frame(width: 100, height: 100)
+
+                                VStack(spacing: 6) {
+                                    Image(systemName: "photo.stack.fill")
+                                        .font(.system(size: 26))
+                                        .foregroundStyle(TelegramPalette.skyBlue)
+                                    Text("Photo Library")
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundStyle(.white)
+                                }
+                            }
+                        }
+
+                        ForEach(savedImages, id: \.self) { filename in
                             Button {
                                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                                onSendPhoto(item.title, "1.8 MB")
+                                let sizeStr = MediaStorageService.shared.fileSizeString(for: filename)
+                                onSendPhoto(filename, sizeStr)
                                 dismiss()
                             } label: {
                                 ZStack(alignment: .bottomLeading) {
-                                    if let img = MediaStorageService.shared.loadImage(named: item.title) {
+                                    if let img = MediaStorageService.shared.loadImage(named: filename) {
                                         Image(uiImage: img)
                                             .resizable()
                                             .scaledToFill()
-                                            .frame(width: 110, height: 110)
+                                            .frame(width: 100, height: 100)
                                             .clipped()
                                     } else {
                                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                            .fill(item.color.opacity(0.3))
-                                            .frame(width: 110, height: 110)
-                                            .overlay {
-                                                Image(systemName: item.icon)
-                                                    .font(.system(size: 32))
-                                                    .foregroundStyle(item.color)
-                                            }
+                                            .fill(Color.blue.opacity(0.3))
+                                            .frame(width: 100, height: 100)
                                     }
 
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(item.title)
-                                            .font(.system(size: 10, weight: .semibold))
-                                            .lineLimit(1)
-                                            .foregroundStyle(.white)
-                                    }
-                                    .padding(8)
-                                    .frame(width: 110, alignment: .leading)
-                                    .background(Color.black.opacity(0.65))
+                                    Text(filename)
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .lineLimit(1)
+                                        .foregroundStyle(.white)
+                                        .padding(6)
+                                        .frame(width: 100, alignment: .leading)
+                                        .background(Color.black.opacity(0.6))
                                 }
                                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                                 .overlay(
@@ -2771,11 +2841,11 @@ private struct AttachmentPickerSheet: View {
                         PhotosPicker(selection: $selectedPhotoPickerItem, matching: .images) {
                             attachmentActionItem(title: "Gallery", icon: "photo.on.rectangle.angled", color: Color(hex: 0x0A84FF))
                         }
-                        .onChange(of: selectedPhotoPickerItem) { newItem in
+                        .onChange(of: selectedPhotoPickerItem) { _, newItem in
                             guard let newItem = newItem else { return }
                             Task {
                                 if let data = try? await newItem.loadTransferable(type: Data.self) {
-                                    let filename = "User_Photo_\(Int.random(in: 100...999)).jpg"
+                                    let filename = "IMG_\(Int.random(in: 1000...9999)).jpg"
                                     MediaStorageService.shared.saveImage(data: data, filename: filename)
                                     let sizeStr = MediaStorageService.shared.fileSizeString(for: filename)
                                     await MainActor.run {
@@ -2789,8 +2859,10 @@ private struct AttachmentPickerSheet: View {
 
                         Button {
                             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                            onSendFile("Spec_Sheet_v2.pdf", "4.2 MB")
                             dismiss()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                onBrowseFiles?()
+                            }
                         } label: {
                             attachmentActionItem(title: "File", icon: "doc.fill", color: Color(hex: 0x30B0C7))
                         }
@@ -2802,22 +2874,12 @@ private struct AttachmentPickerSheet: View {
                                 onOpenDocumentPicker?()
                             }
                         } label: {
-                            attachmentActionItem(title: "Document", icon: "doc.text.fill", color: Color(hex: 0xFF9500))
+                            attachmentActionItem(title: "Templates", icon: "doc.text.fill", color: Color(hex: 0xFF9500))
                         }
 
                         Button {
                             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                            dismiss()
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                onOpenWidgetPicker?()
-                            }
-                        } label: {
-                            attachmentActionItem(title: "AI Widget", icon: "sparkles", color: Color(hex: 0xAF52DE))
-                        }
-
-                        Button {
-                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                            onSendFile("San_Francisco_HQ.loc", "GPS Data")
+                            onSendLocation?()
                             dismiss()
                         } label: {
                             attachmentActionItem(title: "Location", icon: "location.fill", color: Color(hex: 0x34C759))
@@ -2825,7 +2887,15 @@ private struct AttachmentPickerSheet: View {
 
                         Button {
                             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                            onSendFile("Team_Consensus_Vote.poll", "Active Poll")
+                            onSendContact?()
+                            dismiss()
+                        } label: {
+                            attachmentActionItem(title: "Contact", icon: "person.crop.circle.fill", color: Color(hex: 0x007AFF))
+                        }
+
+                        Button {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            onSendPoll?()
                             dismiss()
                         } label: {
                             attachmentActionItem(title: "Poll", icon: "chart.bar.fill", color: Color(hex: 0xFF9500))
@@ -2839,6 +2909,9 @@ private struct AttachmentPickerSheet: View {
         }
         .presentationDetents([.height(350)])
         .background(TelegramPalette.backgroundElevated.ignoresSafeArea())
+        .onAppear {
+            savedImages = MediaStorageService.shared.savedImageFiles()
+        }
     }
 
     private func attachmentActionItem(title: String, icon: String, color: Color) -> some View {
@@ -3498,7 +3571,7 @@ struct DocumentPickerSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                Section(header: Text("AIGram Knowledge Base Presets")) {
+                Section(header: Text("Document Templates & Guides")) {
                     ForEach(presets, id: \.name) { doc in
                         Button {
                             UIImpactFeedbackGenerator(style: .medium).impactOccurred()

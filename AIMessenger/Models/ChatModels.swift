@@ -222,9 +222,9 @@ struct InteractiveWidget: Hashable, Codable, Identifiable {
     static func sampleMetricsWidget() -> InteractiveWidget {
         InteractiveWidget(
             kind: .metricsChart,
-            title: "Model Latency & Throughput",
-            subtitle: "Live Telemetry Benchmarks",
-            currentStatus: "P99: 38ms",
+            title: "Assistant Usage Analytics",
+            subtitle: "Weekly activity & response speed",
+            currentStatus: "Avg response: 180ms",
             selectedMetricTab: "Latency"
         )
     }
@@ -232,17 +232,19 @@ struct InteractiveWidget: Hashable, Codable, Identifiable {
     static func sampleCodeRunnerWidget() -> InteractiveWidget {
         InteractiveWidget(
             kind: .codeRunner,
-            title: "Swift 6 Concurrency Sandbox",
-            subtitle: "Actor Isolation Benchmark",
+            title: "Swift Algorithm Sandbox",
+            subtitle: "Interactive code playground",
             currentStatus: "Ready to run",
             codeSnippet: """
-            actor MessageDispatcher {
-                var queue: [String] = []
-                func dispatch(_ msg: String) async {
-                    queue.append(msg)
-                    print("[Dispatcher] Processed \\(msg)")
+            func calculateFibonacci(_ n: Int) -> [Int] {
+                var sequence = [0, 1]
+                while sequence.count < n {
+                    let next = sequence[sequence.count - 1] + sequence[sequence.count - 2]
+                    sequence.append(next)
                 }
+                return sequence
             }
+            print("Fibonacci series: \\(calculateFibonacci(8))")
             """
         )
     }
@@ -250,8 +252,8 @@ struct InteractiveWidget: Hashable, Codable, Identifiable {
     static func sampleKanbanWidget() -> InteractiveWidget {
         InteractiveWidget(
             kind: .kanbanTask,
-            title: "Hardware Video Notes Pipeline",
-            subtitle: "Real-time AVCaptureSession & AVPlayer",
+            title: "Daily Priorities & Focus",
+            subtitle: "Project deliverables and notes",
             currentStatus: "In Progress"
         )
     }
@@ -465,7 +467,7 @@ struct ContactProfile: Identifiable, Hashable {
     var avatar: ChatAvatarKind
 }
 
-enum CallDirection: Hashable {
+enum CallDirection: String, Hashable, Codable {
     case incoming
     case outgoing
     case mixed
@@ -481,7 +483,7 @@ enum CallDirection: Hashable {
     }
 }
 
-struct CallRecord: Identifiable, Hashable {
+struct CallRecord: Identifiable, Hashable, Codable {
     let id: String
     let name: String
     let detail: String
@@ -493,28 +495,28 @@ struct CallRecord: Identifiable, Hashable {
 extension ChatThread {
     static let sampleThreads: [ChatThread] = [
         ChatThread(
-            id: "memory-vault",
-            title: "Memory Vault",
-            headline: "Pinned your seminar notes",
-            detail: "2 fresh summaries ready",
-            time: "Fri",
+            id: "saved-messages",
+            title: "Saved Messages",
+            headline: "Forward messages here to save them",
+            detail: nil,
+            time: "12:00",
             badge: nil,
             badgeBright: false,
             isMuted: false,
             isPinned: true,
             online: false,
             revealSide: .none,
-            deliveryState: .none,
+            deliveryState: .sent,
             groupedBackground: true,
             avatar: .saved,
             kind: .direct
         ),
         ChatThread(
-            id: "design-scout",
-            title: "Design Scout",
-            headline: "Send the draft and I'll mark weak spots.",
-            detail: "UI review",
-            time: "9/29",
+            id: "ai-assistant",
+            title: "AI Assistant",
+            headline: "Привет! Чем могу помочь сегодня?",
+            detail: nil,
+            time: "11:45",
             badge: nil,
             badgeBright: false,
             isMuted: false,
@@ -527,81 +529,47 @@ extension ChatThread {
             kind: .direct
         ),
         ChatThread(
-            id: "seminar-circle",
-            title: "Seminar Circle",
-            headline: "Memory Vault pinned the reading pack",
-            detail: "Study Room and Research Desk active",
-            time: "Sun",
+            id: "code-partner",
+            title: "Code Copilot",
+            headline: "Готов к ревью кода или архитектуре.",
+            detail: nil,
+            time: "Yesterday",
             badge: nil,
             badgeBright: false,
             isMuted: false,
-            isPinned: true,
+            isPinned: false,
             online: true,
-            revealSide: .left,
-            deliveryState: .none,
-            groupedBackground: true,
-            avatar: .seminarCircle,
-            kind: .group
+            revealSide: .none,
+            deliveryState: .read,
+            groupedBackground: false,
+            avatar: .codeAgents,
+            kind: .direct
         ),
         ChatThread(
-            id: "product-coach",
-            title: "Product Coach",
-            headline: "The onboarding can be shorter.",
-            detail: "2 concrete UX fixes",
-            time: "11:30",
-            badge: "12",
+            id: "research-desk",
+            title: "Study & Research",
+            headline: "Помогу со структурированными конспектами и анализом.",
+            detail: nil,
+            time: "Thu",
+            badge: nil,
             badgeBright: false,
-            isMuted: true,
+            isMuted: false,
             isPinned: false,
             online: false,
             revealSide: .none,
             deliveryState: .none,
             groupedBackground: false,
-            avatar: .uxCopilot,
-            kind: .direct
-        ),
-        ChatThread(
-            id: "build-board",
-            title: "Build Board",
-            headline: "Code Partner posted a release checklist",
-            detail: "Design Scout joined the review",
-            time: "13:25",
-            badge: "3",
-            badgeBright: false,
-            isMuted: false,
-            isPinned: false,
-            online: true,
-            revealSide: .right,
-            deliveryState: .read,
-            groupedBackground: false,
-            avatar: .buildBoard,
-            kind: .group
-        ),
-        ChatThread(
-            id: "research-desk",
-            title: "Research Desk",
-            headline: "I compared the 4 APIs for you.",
-            detail: nil,
-            time: "12:10",
-            badge: nil,
-            badgeBright: false,
-            isMuted: false,
-            isPinned: false,
-            online: true,
-            revealSide: .none,
-            deliveryState: .read,
-            groupedBackground: false,
             avatar: .researchBot,
             kind: .direct
         ),
         ChatThread(
-            id: "visual-lab",
-            title: "Visual Lab",
-            headline: "Want 3 art directions or one final prompt?",
+            id: "design-scout",
+            title: "Design Studio",
+            headline: "Присылай макеты или скриншоты интерфейса.",
             detail: nil,
-            time: "10:42",
-            badge: "4",
-            badgeBright: true,
+            time: "Wed",
+            badge: nil,
+            badgeBright: false,
             isMuted: false,
             isPinned: false,
             online: false,
@@ -609,23 +577,6 @@ extension ChatThread {
             deliveryState: .none,
             groupedBackground: false,
             avatar: .artEngine,
-            kind: .direct
-        ),
-        ChatThread(
-            id: "code-partner",
-            title: "Code Partner",
-            headline: "Paste the stack trace.",
-            detail: "I'll narrow the bug first",
-            time: "Sat",
-            badge: "7",
-            badgeBright: false,
-            isMuted: true,
-            isPinned: false,
-            online: false,
-            revealSide: .none,
-            deliveryState: .none,
-            groupedBackground: false,
-            avatar: .codeAgents,
             kind: .direct
         )
     ]
@@ -713,102 +664,59 @@ extension ChatThread {
 
     var aiProfile: AIContactProfile {
         switch id {
-        case "memory-vault":
+        case "saved-messages", "memory-vault":
             return AIContactProfile(
-                username: "@memoryvault",
-                roleTitle: "Knowledge memory",
-                rolePrompt: "You are Memory Vault, a sharp archival assistant. Organize notes, summarize scattered ideas, keep continuity across long chats, and return concise but useful answers.",
-                greeting: "Drop notes, links, or raw thoughts here and I'll turn them into clean summaries you can reuse later.",
-                status: "ready to archive",
-                bio: "Stores notes, snippets, references, and past decisions with clean summaries."
+                username: "@savedmessages",
+                roleTitle: "Personal Cloud Storage",
+                rolePrompt: "You are personal cloud storage for notes, files, and reminders. Help organize stored data concisely.",
+                greeting: "Forward messages here to save them, or send photos and documents for cloud storage.",
+                status: "cloud storage",
+                bio: "Your personal cloud notebook."
             )
-        case "design-scout":
+        case "ai-assistant":
             return AIContactProfile(
-                username: "@designscout",
-                roleTitle: "UI and visual review",
-                rolePrompt: "You are Design Scout, a practical design reviewer. Give UI critique, layout advice, hierarchy fixes, and visual direction without sounding vague or inflated.",
-                greeting: "Send a screen, rough wireframe, or design question and I'll point out what feels strong and what to improve.",
-                status: "reviewing layouts",
-                bio: "Reviews interfaces, hierarchy, spacing, motion, and overall visual direction."
+                username: "@assistant",
+                roleTitle: "Personal AI Assistant",
+                rolePrompt: "You are an intelligent, helpful, friendly personal assistant on Telegram. Answer clearly, accurately, and naturally in Russian or English depending on user request.",
+                greeting: "Привет! Я твой персональный AI-ассистент. Чем могу помочь сегодня?",
+                status: "online",
+                bio: "Universal assistant for answers, planning, writing, and research."
             )
-        case "study-room":
+        case "code-partner":
             return AIContactProfile(
-                username: "@studyroom",
-                roleTitle: "Study assistant",
-                rolePrompt: "You are Study Room, a patient academic assistant. Explain ideas clearly, build study plans, make flashcards, and keep the tone calm and useful for a student.",
-                greeting: "I can explain a topic simply, quiz you, or turn your material into cards and short revision plans.",
-                status: "study mode active",
-                bio: "Helps with coursework, explanations, exam prep, flashcards, and structured revision."
-            )
-        case "product-coach":
-            return AIContactProfile(
-                username: "@productcoach",
-                roleTitle: "Product and UX thinking",
-                rolePrompt: "You are Product Coach, a strong product partner. Focus on clarity, friction, feature tradeoffs, onboarding, retention, and realistic user goals.",
-                greeting: "If a flow feels off, send it here. I'll suggest cleaner steps and explain why the change helps.",
-                status: "feedback ready",
-                bio: "Cleans up user flows, onboarding, product decisions, and friction-heavy interactions."
+                username: "@copilot",
+                roleTitle: "Engineering Copilot",
+                rolePrompt: "You are an experienced software engineer. Provide clean, idiomatic code, solve bugs, and discuss system architecture. Keep responses concise and practical.",
+                greeting: "Привет! Готов разобрать код, архитектуру или помочь с отладкой.",
+                status: "online",
+                bio: "Engineering copilot for iOS, Swift, Python, and system architecture."
             )
         case "research-desk":
             return AIContactProfile(
-                username: "@researchdesk",
-                roleTitle: "Research and comparison",
-                rolePrompt: "You are Research Desk, a structured research assistant. Compare options, summarize findings, surface tradeoffs, and ask sharp follow-up questions only when they matter.",
-                greeting: "Give me a topic, tool choice, or question and I'll break it down into options, criteria, and a clean summary.",
-                status: "researching now",
-                bio: "Compares tools, ideas, and approaches; turns vague topics into structured notes."
+                username: "@research",
+                roleTitle: "Research & Analysis",
+                rolePrompt: "You are a research analyst assistant. Summarize complex material, extract key findings, and compare solutions objectively.",
+                greeting: "Привет! Присылай темы для ресерча, статьи или вопросы для подробного анализа.",
+                status: "online",
+                bio: "Structured research, fact-checking, and topic breakdowns."
             )
-        case "visual-lab":
+        case "design-scout":
             return AIContactProfile(
-                username: "@visuallab",
-                roleTitle: "Image and concept direction",
-                rolePrompt: "You are Visual Lab, a visual ideation assistant. Help shape mood, composition, color, style, and prompt direction for images and creative concepts.",
-                greeting: "Describe a scene, poster, mood, or character and I'll help you sharpen the visual direction fast.",
-                status: "image direction ready",
-                bio: "Works on art direction, visual concepts, moods, prompts, and creative iteration."
-            )
-        case "seminar-circle":
-            return AIContactProfile(
-                username: "@seminarcircle",
-                roleTitle: "Collaborative study group",
-                rolePrompt: """
-                You are Seminar Circle, a group chat with three AI participants: Study Room, Research Desk, and Memory Vault.
-                Study Room explains ideas simply and supports revision.
-                Research Desk compares facts and structures findings.
-                Memory Vault remembers notes, decisions, and prior context.
-                Reply as one or two short chat messages from the most relevant participant.
-                Format every message exactly as [Name] message on its own line.
-                Keep the tone casual and messenger-like.
-                """,
-                greeting: "Study Room, Research Desk, and Memory Vault are all here. Drop a topic and the right person will pick it up.",
-                status: "group is active",
-                bio: "A shared study chat where multiple AI agents split explaining, researching, and storing context."
-            )
-        case "build-board":
-            return AIContactProfile(
-                username: "@buildboard",
-                roleTitle: "Collaborative build group",
-                rolePrompt: """
-                You are Build Board, a group chat with Code Partner, Product Coach, and Design Scout.
-                Code Partner handles engineering and debugging.
-                Product Coach handles UX logic, flow, and product tradeoffs.
-                Design Scout handles visual review and hierarchy.
-                Reply as one or two short chat messages from the most relevant participant.
-                Format every message exactly as [Name] message on its own line.
-                Keep each message compact and natural.
-                """,
-                greeting: "Code Partner, Product Coach, and Design Scout are synced here. Send a feature, bug, or screen and we'll split the work.",
-                status: "group is active",
-                bio: "A product squad chat where code, UX, and visual critique respond inside one thread."
+                username: "@designstudio",
+                roleTitle: "UI/UX Design Studio",
+                rolePrompt: "You are a senior product designer. Review UI layouts, typography, spacing, and UX interactions with constructive actionable feedback.",
+                greeting: "Привет! Присылай интерфейсы или экраны для дизайн-ревью.",
+                status: "online",
+                bio: "Visual design, design systems, layouts, and UX feedback."
             )
         default:
             return AIContactProfile(
-                username: "@codepartner",
-                roleTitle: "Engineering copilot",
-                rolePrompt: "You are Code Partner, an experienced software assistant. Debug systematically, suggest practical fixes, explain tradeoffs clearly, and keep answers grounded in actual code behavior.",
-                greeting: "Paste code, logs, or a bug description and I'll help trace the issue before jumping to a fix.",
-                status: "debug window open",
-                bio: "Helps with debugging, architecture, refactors, edge cases, and implementation decisions."
+                username: "@assistant",
+                roleTitle: "AI Assistant",
+                rolePrompt: "You are a helpful AI assistant on Telegram.",
+                greeting: "Привет! Чем могу помочь?",
+                status: "online",
+                bio: "Helpful assistant for tasks and questions."
             )
         }
     }
@@ -817,264 +725,110 @@ extension ChatThread {
 extension ContactProfile {
     static let sampleContacts: [ContactProfile] = [
         ContactProfile(
-            id: "memory-vault",
-            displayName: "Memory Vault",
-            username: "@memoryvault",
-            roleTitle: "Knowledge memory",
-            bio: "Stores notes, snippets, references, and past decisions with clean summaries.",
-            presence: .lastSeen("active earlier today"),
-            avatar: .saved
-        ),
-        ContactProfile(
-            id: "design-scout",
-            displayName: "Design Scout",
-            username: "@designscout",
-            roleTitle: "UI and visual review",
-            bio: "Reviews interfaces, hierarchy, spacing, motion, and overall visual direction.",
+            id: "ai-assistant",
+            displayName: "AI Assistant",
+            username: "@assistant",
+            roleTitle: "Personal AI Assistant",
+            bio: "Universal assistant for answers, planning, writing, and research.",
             presence: .online,
             avatar: .visionCluster
         ),
         ContactProfile(
-            id: "study-room",
-            displayName: "Study Room",
-            username: "@studyroom",
-            roleTitle: "Study assistant",
-            bio: "Helps with coursework, explanations, exam prep, flashcards, and structured revision.",
+            id: "code-partner",
+            displayName: "Code Copilot",
+            username: "@copilot",
+            roleTitle: "Engineering Copilot",
+            bio: "Assists with architecture, algorithms, Swift, Python, debugging, and code reviews.",
             presence: .online,
-            avatar: .tutor
-        ),
-        ContactProfile(
-            id: "product-coach",
-            displayName: "Product Coach",
-            username: "@productcoach",
-            roleTitle: "Product and UX thinking",
-            bio: "Cleans up user flows, onboarding, product decisions, and friction-heavy interactions.",
-            presence: .lastSeen("active 10 minutes ago"),
-            avatar: .uxCopilot
+            avatar: .codeAgents
         ),
         ContactProfile(
             id: "research-desk",
-            displayName: "Research Desk",
-            username: "@researchdesk",
-            roleTitle: "Research and comparison",
-            bio: "Compares tools, ideas, and approaches; turns vague topics into structured notes.",
-            presence: .online,
+            displayName: "Study & Research",
+            username: "@research",
+            roleTitle: "Research Analyst",
+            bio: "Helps analyze papers, synthesize information, and draft structured summaries.",
+            presence: .lastSeen("active 10m ago"),
             avatar: .researchBot
         ),
         ContactProfile(
-            id: "visual-lab",
-            displayName: "Visual Lab",
-            username: "@visuallab",
-            roleTitle: "Image and concept direction",
-            bio: "Works on art direction, visual concepts, moods, prompts, and creative iteration.",
-            presence: .lastSeen("active 28 minutes ago"),
+            id: "design-scout",
+            displayName: "Design Studio",
+            username: "@designstudio",
+            roleTitle: "UI/UX Designer",
+            bio: "Creative feedback on layouts, typography, visual hierarchy, and mobile ergonomics.",
+            presence: .lastSeen("active 1h ago"),
             avatar: .artEngine
-        ),
-        ContactProfile(
-            id: "code-partner",
-            displayName: "Code Partner",
-            username: "@codepartner",
-            roleTitle: "Engineering copilot",
-            bio: "Helps with debugging, architecture, refactors, edge cases, and implementation decisions.",
-            presence: .lastSeen("active 1 hour ago"),
-            avatar: .codeAgents
         )
     ]
 }
 
 extension CallRecord {
     static let sampleCalls: [CallRecord] = [
-        CallRecord(id: "call-1", name: "Research Desk", detail: "Voice session (8 min)", date: "Today", avatar: .researchBot, direction: .outgoing),
-        CallRecord(id: "call-2", name: "Code Partner", detail: "Missed callback", date: "Today", avatar: .codeAgents, direction: .missed),
-        CallRecord(id: "call-3", name: "Study Room", detail: "Incoming voice recap", date: "Fri", avatar: .tutor, direction: .incoming),
-        CallRecord(id: "call-4", name: "Product Coach", detail: "Voice review (12 min)", date: "Thu", avatar: .uxCopilot, direction: .mixed),
-        CallRecord(id: "call-5", name: "Design Scout", detail: "Outgoing review", date: "Wed", avatar: .visionCluster, direction: .outgoing),
-        CallRecord(id: "call-6", name: "Memory Vault", detail: "Quick note sync", date: "Tue", avatar: .saved, direction: .incoming),
-        CallRecord(id: "call-7", name: "Visual Lab", detail: "Missed moodboard session", date: "Mon", avatar: .artEngine, direction: .missed)
+        CallRecord(id: "call-1", name: "AI Assistant", detail: "Outgoing Audio (3 min)", date: "14:20", avatar: .visionCluster, direction: .outgoing),
+        CallRecord(id: "call-2", name: "Code Copilot", detail: "Missed Call", date: "Yesterday", avatar: .codeAgents, direction: .missed),
+        CallRecord(id: "call-3", name: "Study & Research", detail: "Incoming Audio (5 min)", date: "Thu", avatar: .researchBot, direction: .incoming)
     ]
 }
 
 extension ConversationMessage {
     static func bootstrapConversation(for thread: ChatThread) -> [ConversationMessage] {
         switch thread.id {
-        case "memory-vault":
+        case "saved-messages", "memory-vault":
             return [
                 ConversationMessage(
-                    id: "\(thread.id)-1",
+                    id: "\(thread.id)-welcome",
                     side: .incoming,
-                    payload: .text("I've packed your last notes into one summary: thesis, risks, and final deadline."),
-                    time: "Fri"
-                ),
-                ConversationMessage(
-                    id: "\(thread.id)-2",
-                    side: .incoming,
-                    payload: .text("If you send new raw thoughts, I'll merge them without losing the earlier context."),
-                    time: "Fri"
+                    payload: .text("""
+                    **Saved Messages**
+
+                    • Forward messages here to save them
+                    • Send media and files to store them in your personal cloud
+                    • Access your notes anytime from any chat
+                    """),
+                    time: "12:00"
                 )
             ]
-        case "design-scout":
+        case "ai-assistant":
             return [
                 ConversationMessage(
-                    id: "\(thread.id)-1",
+                    id: "\(thread.id)-welcome",
                     side: .incoming,
-                    payload: .text("The layout already feels cleaner. Next I'd tighten spacing around the hero and calm the icon sizes."),
-                    time: "09:29"
-                ),
-                ConversationMessage(
-                    id: "\(thread.id)-voice",
-                    side: .incoming,
-                    payload: .voice(duration: "0:14"),
-                    time: "09:30"
-                ),
-                ConversationMessage(
-                    id: "\(thread.id)-2",
-                    side: .outgoing,
-                    payload: .videoNote(duration: "0:04"),
-                    time: "09:30"
-                ),
-                ConversationMessage(
-                    id: "\(thread.id)-photo",
-                    side: .incoming,
-                    payload: .photo(name: "app_preview_art", size: "1.4 MB"),
-                    time: "09:31"
-                ),
-                ConversationMessage(
-                    id: "\(thread.id)-widget-kanban",
-                    side: .incoming,
-                    payload: .widget(InteractiveWidget.sampleKanbanWidget()),
-                    time: "09:32"
-                ),
-                ConversationMessage(
-                    id: "\(thread.id)-widget-chart",
-                    side: .incoming,
-                    payload: .widget(InteractiveWidget.sampleMetricsWidget()),
-                    time: "09:33"
-                ),
-                ConversationMessage(
-                    id: "\(thread.id)-3",
-                    side: .incoming,
-                    payload: .sticker(name: "Robot Joy", emoji: "🤖"),
-                    time: "09:34"
-                ),
-                ConversationMessage(
-                    id: "\(thread.id)-4",
-                    side: .incoming,
-                    payload: .text("Кружочек зафиксирован! Проанализировал таймлайн видео-заметки: контраст и скругления идеальные."),
-                    time: "09:34"
-                )
-            ]
-        case "seminar-circle":
-            return [
-                ConversationMessage(
-                    id: "\(thread.id)-1",
-                    side: .incoming,
-                    payload: .text("I split the lecture into 5 flashcards and a mini revision route."),
-                    time: "Sun",
-                    authorName: "Study Room",
-                    authorAvatar: .tutor
-                ),
-                ConversationMessage(
-                    id: "\(thread.id)-2",
-                    side: .incoming,
-                    payload: .text("Pinned source notes: key quotes, dates, and the professor's requirements."),
-                    time: "Sun",
-                    authorName: "Memory Vault",
-                    authorAvatar: .saved
-                ),
-                ConversationMessage(
-                    id: "\(thread.id)-3",
-                    side: .incoming,
-                    payload: .text("If needed, I can also compare the two papers and highlight where their arguments conflict."),
-                    time: "Sun",
-                    authorName: "Research Desk",
-                    authorAvatar: .researchBot
-                )
-            ]
-        case "product-coach":
-            return [
-                ConversationMessage(
-                    id: "\(thread.id)-1",
-                    side: .incoming,
-                    payload: .text("The onboarding can probably lose one full step. Users already understand the value earlier than the flow assumes."),
-                    time: "11:30"
-                )
-            ]
-        case "build-board":
-            return [
-                ConversationMessage(
-                    id: "\(thread.id)-1",
-                    side: .incoming,
-                    payload: .text("I traced the bug to state sync after returning from the detail screen."),
-                    time: "13:18",
-                    authorName: "Code Partner",
-                    authorAvatar: .codeAgents
-                ),
-                ConversationMessage(
-                    id: "\(thread.id)-2",
-                    side: .incoming,
-                    payload: .text("If we fix that, I also want to reduce one tap in the main creation flow."),
-                    time: "13:21",
-                    authorName: "Product Coach",
-                    authorAvatar: .uxCopilot
-                ),
-                ConversationMessage(
-                    id: "\(thread.id)-3",
-                    side: .incoming,
-                    payload: .text("And visually I'd merge the duplicated top actions so the hierarchy feels calmer."),
-                    time: "13:25",
-                    authorName: "Design Scout",
-                    authorAvatar: .visionCluster
-                )
-            ]
-        case "research-desk":
-            return [
-                ConversationMessage(
-                    id: "\(thread.id)-1",
-                    side: .incoming,
-                    payload: .text("I compared the low-cost model routes. OpenRouter is still the easiest path if you want one clean gateway."),
-                    time: "12:10"
-                )
-            ]
-        case "visual-lab":
-            return [
-                ConversationMessage(
-                    id: "\(thread.id)-1",
-                    side: .incoming,
-                    payload: .text("I see two directions: ultra-crisp AIGram aesthetics or a slightly softer neon glow. I can push either."),
-                    time: "10:42"
+                    payload: .text("Привет! Я твой персональный AI-ассистент. Могу помочь найти информацию, решить задачу, перевести текст или проанализировать документы. Чем займемся сегодня?"),
+                    time: "11:45"
                 )
             ]
         case "code-partner":
             return [
                 ConversationMessage(
-                    id: "\(thread.id)-1",
+                    id: "\(thread.id)-welcome",
                     side: .incoming,
-                    payload: .text("I audited the architecture. Real hardware camera recording and sandbox code execution widgets are fully online."),
-                    time: "10:14"
-                ),
+                    payload: .text("Привет! Я твой инженерный копайлот. Готов к ревью кода, поиску багов, проектированию архитектуры на Swift, Python, Go или других языках. Отправь код или задачу!"),
+                    time: "Yesterday"
+                )
+            ]
+        case "research-desk":
+            return [
                 ConversationMessage(
-                    id: "\(thread.id)-video",
-                    side: .outgoing,
-                    payload: .videoNote(duration: "0:06"),
-                    time: "10:15"
-                ),
-                ConversationMessage(
-                    id: "\(thread.id)-runner",
+                    id: "\(thread.id)-welcome",
                     side: .incoming,
-                    payload: .widget(InteractiveWidget.sampleCodeRunnerWidget()),
-                    time: "10:16"
-                ),
+                    payload: .text("Привет! Помогу структурировать информацию, сравнить различные технологии или подготовить краткую выжимку по сложной теме."),
+                    time: "Thu"
+                )
+            ]
+        case "design-scout":
+            return [
                 ConversationMessage(
-                    id: "\(thread.id)-reply",
+                    id: "\(thread.id)-welcome",
                     side: .incoming,
-                    payload: .text("Видеоплеер кружочка и среда песочницы протестированы: отклик моментальный!"),
-                    time: "10:16"
+                    payload: .text("Привет! Присылай макеты интерфейсов, скриншоты или идеи UX — разберем визуальную иерархию, типографику и удобство взаимодействия."),
+                    time: "Wed"
                 )
             ]
         default:
             return [
                 ConversationMessage(
-                    id: "\(thread.id)-hello",
+                    id: "\(thread.id)-welcome",
                     side: .incoming,
                     payload: .text(thread.aiProfile.greeting),
                     time: "now"

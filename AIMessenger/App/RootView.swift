@@ -162,6 +162,20 @@ struct RootView: View {
             }
         } else if args.contains("-openCalls") {
             selectedTab = .calls
+        } else if args.contains("-openContacts") {
+            selectedTab = .contacts
+        } else if args.contains("-openContactInfo") {
+            selectedTab = .contacts
+            if let contact = aiWorkspace.contacts.first {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    contactsPath = [.info(contact)]
+                }
+            }
+        } else if args.contains("-openDataStorage") {
+            selectedTab = .settings
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                settingsPath = [.dataStorage]
+            }
         }
     }
 }
