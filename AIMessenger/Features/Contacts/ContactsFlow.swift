@@ -25,14 +25,7 @@ struct ContactsScreen: View {
                 Button {
                     isCreateAgentPresented = true
                 } label: {
-                    actionRow(title: "New Agent", symbol: "sparkles.rectangle.stack.fill", tint: TelegramPalette.accentBlue)
-                }
-                .buttonStyle(.plain)
-
-                Button {
-                    isLibraryPresented = true
-                } label: {
-                    actionRow(title: "Explore Library", symbol: "square.grid.2x2.fill", tint: TelegramPalette.accentBlue)
+                    actionRow(title: "Создать Fake Human", symbol: "person.crop.circle.badge.plus", tint: TelegramPalette.accentBlue)
                 }
                 .buttonStyle(.plain)
 
@@ -51,7 +44,7 @@ struct ContactsScreen: View {
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
         .sheet(isPresented: $isCreateAgentPresented) {
-            CreateAgentSheet()
+            CreateFakeHumanSheet()
         }
         .sheet(isPresented: $isLibraryPresented) {
             ExploreLibrarySheet()
@@ -124,20 +117,39 @@ struct ContactsScreen: View {
 
     private func contactRow(contact: ContactProfile, showSeparator: Bool) -> some View {
         HStack(spacing: 10) {
-            AvatarView(kind: contact.avatar, showsOnlineDot: contact.presence.isOnline)
+            AvatarView(
+                kind: contact.avatar,
+                showsOnlineDot: contact.presence.isOnline,
+                customImageFilename: contact.customAvatarFilename
+            )
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(contact.displayName)
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(.white)
+                HStack(spacing: 5) {
+                    Text(contact.displayName)
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(.white)
 
-                Text(contact.roleTitle)
-                    .font(.system(size: 15))
-                    .foregroundStyle(.white.opacity(0.68))
+                    if let mood = contact.mood {
+                        Text(mood.emoji)
+                            .font(.system(size: 14))
+                    }
+                }
 
-                Text(contact.presence.label)
+                if let rel = contact.relationshipKind {
+                    Text(rel.rawValue)
+                        .font(.system(size: 14))
+                        .foregroundStyle(TelegramPalette.accentBlue)
+                        .lineLimit(1)
+                } else {
+                    Text(contact.roleTitle)
+                        .font(.system(size: 15))
+                        .foregroundStyle(.white.opacity(0.68))
+                        .lineLimit(1)
+                }
+
+                Text(contact.mood?.statusText ?? contact.presence.label)
                     .font(.system(size: 14))
-                    .foregroundStyle(contact.presence.isOnline ? TelegramPalette.accentBlue : TelegramPalette.mutedText)
+                    .foregroundStyle(contact.mood == .offended ? Color(hex: 0xFE3B30) : (contact.presence.isOnline ? TelegramPalette.accentBlue : TelegramPalette.mutedText))
             }
 
             Spacer()
@@ -148,9 +160,9 @@ struct ContactsScreen: View {
         .overlay(alignment: .bottom) {
             if showSeparator {
                 Rectangle()
-                .fill(TelegramPalette.separator)
-                .frame(height: 0.5)
-                .padding(.leading, 79)
+                    .fill(TelegramPalette.separator)
+                    .frame(height: 0.5)
+                    .padding(.leading, 79)
             }
         }
     }
@@ -199,17 +211,30 @@ struct ContactInfoScreen: View {
 
     private var profileHeader: some View {
         VStack(spacing: 12) {
-            AvatarView(kind: contact.avatar, showsOnlineDot: contact.presence.isOnline)
-                .frame(width: 82, height: 82)
-                .scaleEffect(1.32)
+            AvatarView(
+                kind: contact.avatar,
+                showsOnlineDot: contact.presence.isOnline,
+                customImageFilename: contact.customAvatarFilename
+            )
+            .frame(width: 82, height: 82)
+            .scaleEffect(1.32)
 
             Text(contact.displayName)
                 .font(.system(size: 24, weight: .semibold))
                 .foregroundStyle(.white)
 
-            Text(contact.presence.label)
+            if let mood = contact.mood {
+                HStack(spacing: 6) {
+                    Text(mood.emoji)
+                    Text(mood.statusText)
+                }
                 .font(.system(size: 15))
-                .foregroundStyle(contact.presence.isOnline ? TelegramPalette.accentBlue : TelegramPalette.mutedText)
+                .foregroundStyle(mood == .offended ? Color(hex: 0xFE3B30) : TelegramPalette.accentBlue)
+            } else {
+                Text(contact.presence.label)
+                    .font(.system(size: 15))
+                    .foregroundStyle(contact.presence.isOnline ? TelegramPalette.accentBlue : TelegramPalette.mutedText)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 8)
@@ -219,9 +244,22 @@ struct ContactInfoScreen: View {
         LightGroupCard {
             InfoValueRow(title: "username", value: contact.username)
             DividerLine()
-            InfoValueRow(title: "role", value: contact.roleTitle)
-            DividerLine()
-            InfoValueRow(title: "about", value: contact.bio, multiline: true)
+            if let rel = contact.relationshipKind {
+                InfoValueRow(title: "отношения", value: rel.rawValue)
+                DividerLine()
+            }
+            if let human = aiWorkspace.fakeHuman(for: contact.id) {
+                InfoValueRow(title: "характер", value: human.temperament.rawValue)
+                DividerLine()
+                InfoValueRow(title: "стиль чата", value: human.chatStyle.rawValue)
+                DividerLine()
+                InfoValueRow(title: "кто пишет первым", value: human.whoWritesFirst.rawValue)
+                DividerLine()
+            } else {
+                InfoValueRow(title: "роль", value: contact.roleTitle)
+                DividerLine()
+            }
+            InfoValueRow(title: "о себе / контекст", value: contact.bio, multiline: true)
         }
     }
 
@@ -274,17 +312,21 @@ struct ContactInfoScreen: View {
         Button(role: .destructive) {
             showDeleteConfirmation = true
         } label: {
-            destructiveButton(title: "Delete Contact")
+            destructiveButton(title: "Удалить Fake Human")
         }
         .buttonStyle(.plain)
-        .confirmationDialog("Delete Contact", isPresented: $showDeleteConfirmation) {
-            Button("Delete Contact", role: .destructive) {
-                aiWorkspace.removeContact(contactId: contact.id)
+        .confirmationDialog("Удалить Fake Human", isPresented: $showDeleteConfirmation) {
+            Button("Удалить", role: .destructive) {
+                if aiWorkspace.fakeHuman(for: contact.id) != nil {
+                    aiWorkspace.deleteFakeHuman(id: contact.id)
+                } else {
+                    aiWorkspace.removeContact(contactId: contact.id)
+                }
                 dismiss()
             }
-            Button("Cancel", role: .cancel) { }
+            Button("Отмена", role: .cancel) { }
         } message: {
-            Text("Are you sure you want to delete \(contact.displayName)?")
+            Text("Вы уверены, что хотите удалить \(contact.displayName)?")
         }
     }
 

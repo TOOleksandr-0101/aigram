@@ -87,6 +87,8 @@ struct ChatThread: Identifiable, Hashable {
     var pinnedMessageId: String? = nil
     var pinnedMessageSnippet: String? = nil
     var pinnedMessageAuthor: String? = nil
+    var customAvatarFilename: String? = nil
+    var fakeHumanId: String? = nil
 
     init(
         id: String,
@@ -106,7 +108,9 @@ struct ChatThread: Identifiable, Hashable {
         kind: ChatThreadKind,
         pinnedMessageId: String? = nil,
         pinnedMessageSnippet: String? = nil,
-        pinnedMessageAuthor: String? = nil
+        pinnedMessageAuthor: String? = nil,
+        customAvatarFilename: String? = nil,
+        fakeHumanId: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -126,6 +130,8 @@ struct ChatThread: Identifiable, Hashable {
         self.pinnedMessageId = pinnedMessageId
         self.pinnedMessageSnippet = pinnedMessageSnippet
         self.pinnedMessageAuthor = pinnedMessageAuthor
+        self.customAvatarFilename = customAvatarFilename
+        self.fakeHumanId = fakeHumanId
     }
 }
 
@@ -465,6 +471,9 @@ struct ContactProfile: Identifiable, Hashable {
     var bio: String
     var presence: PresenceState
     var avatar: ChatAvatarKind
+    var customAvatarFilename: String? = nil
+    var relationshipKind: HumanRelationshipKind? = nil
+    var mood: HumanMood? = nil
 }
 
 enum CallDirection: String, Hashable, Codable {
@@ -509,74 +518,6 @@ extension ChatThread {
             deliveryState: .sent,
             groupedBackground: true,
             avatar: .saved,
-            kind: .direct
-        ),
-        ChatThread(
-            id: "ai-assistant",
-            title: "AI Assistant",
-            headline: "Привет! Чем могу помочь сегодня?",
-            detail: nil,
-            time: "11:45",
-            badge: nil,
-            badgeBright: false,
-            isMuted: false,
-            isPinned: true,
-            online: true,
-            revealSide: .none,
-            deliveryState: .read,
-            groupedBackground: true,
-            avatar: .visionCluster,
-            kind: .direct
-        ),
-        ChatThread(
-            id: "code-partner",
-            title: "Code Copilot",
-            headline: "Готов к ревью кода или архитектуре.",
-            detail: nil,
-            time: "Yesterday",
-            badge: nil,
-            badgeBright: false,
-            isMuted: false,
-            isPinned: false,
-            online: true,
-            revealSide: .none,
-            deliveryState: .read,
-            groupedBackground: false,
-            avatar: .codeAgents,
-            kind: .direct
-        ),
-        ChatThread(
-            id: "research-desk",
-            title: "Study & Research",
-            headline: "Помогу со структурированными конспектами и анализом.",
-            detail: nil,
-            time: "Thu",
-            badge: nil,
-            badgeBright: false,
-            isMuted: false,
-            isPinned: false,
-            online: false,
-            revealSide: .none,
-            deliveryState: .none,
-            groupedBackground: false,
-            avatar: .researchBot,
-            kind: .direct
-        ),
-        ChatThread(
-            id: "design-scout",
-            title: "Design Studio",
-            headline: "Присылай макеты или скриншоты интерфейса.",
-            detail: nil,
-            time: "Wed",
-            badge: nil,
-            badgeBright: false,
-            isMuted: false,
-            isPinned: false,
-            online: false,
-            revealSide: .none,
-            deliveryState: .none,
-            groupedBackground: false,
-            avatar: .artEngine,
             kind: .direct
         )
     ]
@@ -723,52 +664,11 @@ extension ChatThread {
 }
 
 extension ContactProfile {
-    static let sampleContacts: [ContactProfile] = [
-        ContactProfile(
-            id: "ai-assistant",
-            displayName: "AI Assistant",
-            username: "@assistant",
-            roleTitle: "Personal AI Assistant",
-            bio: "Universal assistant for answers, planning, writing, and research.",
-            presence: .online,
-            avatar: .visionCluster
-        ),
-        ContactProfile(
-            id: "code-partner",
-            displayName: "Code Copilot",
-            username: "@copilot",
-            roleTitle: "Engineering Copilot",
-            bio: "Assists with architecture, algorithms, Swift, Python, debugging, and code reviews.",
-            presence: .online,
-            avatar: .codeAgents
-        ),
-        ContactProfile(
-            id: "research-desk",
-            displayName: "Study & Research",
-            username: "@research",
-            roleTitle: "Research Analyst",
-            bio: "Helps analyze papers, synthesize information, and draft structured summaries.",
-            presence: .lastSeen("active 10m ago"),
-            avatar: .researchBot
-        ),
-        ContactProfile(
-            id: "design-scout",
-            displayName: "Design Studio",
-            username: "@designstudio",
-            roleTitle: "UI/UX Designer",
-            bio: "Creative feedback on layouts, typography, visual hierarchy, and mobile ergonomics.",
-            presence: .lastSeen("active 1h ago"),
-            avatar: .artEngine
-        )
-    ]
+    static let sampleContacts: [ContactProfile] = []
 }
 
 extension CallRecord {
-    static let sampleCalls: [CallRecord] = [
-        CallRecord(id: "call-1", name: "AI Assistant", detail: "Outgoing Audio (3 min)", date: "14:20", avatar: .visionCluster, direction: .outgoing),
-        CallRecord(id: "call-2", name: "Code Copilot", detail: "Missed Call", date: "Yesterday", avatar: .codeAgents, direction: .missed),
-        CallRecord(id: "call-3", name: "Study & Research", detail: "Incoming Audio (5 min)", date: "Thu", avatar: .researchBot, direction: .incoming)
-    ]
+    static let sampleCalls: [CallRecord] = []
 }
 
 extension ConversationMessage {
@@ -826,6 +726,9 @@ extension ConversationMessage {
                 )
             ]
         default:
+            if thread.fakeHumanId != nil {
+                return []
+            }
             return [
                 ConversationMessage(
                     id: "\(thread.id)-welcome",

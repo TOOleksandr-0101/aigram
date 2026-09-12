@@ -29,6 +29,9 @@
 		B10000010000000000000015 /* SpeechTranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000015 /* SpeechTranscriptionService.swift */; };
 		B10000010000000000000016 /* VideoNoteRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000016 /* VideoNoteRecorder.swift */; };
 		B10000010000000000000017 /* AppNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000017 /* AppNotificationService.swift */; };
+		B10000010000000000000018 /* FakeHumanModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000018 /* FakeHumanModels.swift */; };
+		B10000010000000000000019 /* HumanSimulationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000019 /* HumanSimulationEngine.swift */; };
+		B1000001000000000000001A /* CreateFakeHumanSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000001A /* CreateFakeHumanSheet.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -55,6 +58,9 @@
 		B20000010000000000000015 /* SpeechTranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechTranscriptionService.swift; sourceTree = "<group>"; };
 		B20000010000000000000016 /* VideoNoteRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoNoteRecorder.swift; sourceTree = "<group>"; };
 		B20000010000000000000017 /* AppNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNotificationService.swift; sourceTree = "<group>"; };
+		B20000010000000000000018 /* FakeHumanModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeHumanModels.swift; sourceTree = "<group>"; };
+		B20000010000000000000019 /* HumanSimulationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanSimulationEngine.swift; sourceTree = "<group>"; };
+		B2000001000000000000001A /* CreateFakeHumanSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateFakeHumanSheet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -108,6 +114,7 @@
 				B20000010000000000000015 /* SpeechTranscriptionService.swift */,
 				B20000010000000000000016 /* VideoNoteRecorder.swift */,
 				B20000010000000000000017 /* AppNotificationService.swift */,
+				B20000010000000000000019 /* HumanSimulationEngine.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -116,6 +123,7 @@
 			isa = PBXGroup;
 			children = (
 				B20000010000000000000004 /* ChatModels.swift */,
+				B20000010000000000000018 /* FakeHumanModels.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -181,6 +189,7 @@
 			isa = PBXGroup;
 			children = (
 				B2000001000000000000000B /* ContactsFlow.swift */,
+				B2000001000000000000001A /* CreateFakeHumanSheet.swift */,
 			);
 			path = Contacts;
 			sourceTree = "<group>";
@@ -286,6 +295,9 @@
 				B10000010000000000000015 /* SpeechTranscriptionService.swift in Sources */,
 				B10000010000000000000016 /* VideoNoteRecorder.swift in Sources */,
 				B10000010000000000000017 /* AppNotificationService.swift in Sources */,
+				B10000010000000000000018 /* FakeHumanModels.swift in Sources */,
+				B10000010000000000000019 /* HumanSimulationEngine.swift in Sources */,
+				B1000001000000000000001A /* CreateFakeHumanSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

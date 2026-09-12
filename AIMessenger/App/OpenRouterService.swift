@@ -92,7 +92,8 @@ struct OpenRouterService {
         thread: ChatThread,
         history: [ConversationMessage],
         memoryNote: String,
-        configuration: OpenRouterConfiguration
+        configuration: OpenRouterConfiguration,
+        customSystemPrompt: String? = nil
     ) async throws -> String {
         if configuration.provider.requiresKey && configuration.apiKey.isEmpty {
             throw OpenRouterServiceError.invalidKey
@@ -111,7 +112,7 @@ struct OpenRouterService {
 
         let requestBody = OpenRouterRequestBody(
             model: configuration.modelSlug,
-            messages: makeMessages(draft: draft, thread: thread, history: history, memoryNote: memoryNote),
+            messages: makeMessages(draft: draft, thread: thread, history: history, memoryNote: memoryNote, customSystemPrompt: customSystemPrompt),
             temperature: 0.85,
             provider: providerOpts
         )
@@ -196,9 +197,10 @@ struct OpenRouterService {
         draft: String,
         thread: ChatThread,
         history: [ConversationMessage],
-        memoryNote: String
+        memoryNote: String,
+        customSystemPrompt: String? = nil
     ) -> [OpenRouterChatMessage] {
-        var system = """
+        var system = customSystemPrompt ?? """
         \(thread.aiProfile.rolePrompt)
         You are inside an iOS messenger app named AIGram where you appear as an AI collaborator.
         Keep replies natural, conversational, and message-sized by default.

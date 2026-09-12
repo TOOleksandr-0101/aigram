@@ -34,6 +34,7 @@ struct ChatConversationScreen: View {
     @State private var errorText: String?
     @ObservedObject private var audioRecorder = AudioRecordingManager.shared
     @ObservedObject private var videoRecorder = VideoNoteRecordingManager.shared
+    @ObservedObject private var simulationEngine = HumanSimulationEngine.shared
     private let openRouterService = OpenRouterService()
 
     enum InputMediaMode {
@@ -180,6 +181,9 @@ struct ChatConversationScreen: View {
             }
         }
         .onAppear {
+            if let human = aiWorkspace.fakeHuman(for: thread.id) {
+                simulationEngine.scheduleInitiationIfNeeded(for: human, in: thread, workspace: aiWorkspace)
+            }
             if ProcessInfo.processInfo.arguments.contains("-showAttachment") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                     showAttachmentSheet = true
@@ -596,13 +600,25 @@ struct ChatConversationScreen: View {
                     .font(.system(size: 16.5, weight: .semibold))
                     .foregroundStyle(.white)
 
-                if isSending {
+                if let simStatus = simulationEngine.statusLabel(for: thread.id) {
+                    HStack(spacing: 3) {
+                        Text(simStatus)
+                            .font(.system(size: 12))
+                            .foregroundStyle(TelegramPalette.skyBlue)
+                        TypingHeaderDots()
+                    }
+                } else if isSending {
                     HStack(spacing: 3) {
                         Text(currentTypingBotName != nil ? "\(currentTypingBotName!) is typing" : "typing")
                             .font(.system(size: 12))
                             .foregroundStyle(TelegramPalette.skyBlue)
                         TypingHeaderDots()
                     }
+                } else if let human = aiWorkspace.fakeHuman(for: thread.id) {
+                    Text("\(human.currentMood.emoji) \(human.currentMood.statusText)")
+                        .font(.system(size: 12))
+                        .foregroundStyle(human.currentMood == .offended ? Color(hex: 0xFF453A) : Color.white.opacity(0.6))
+                        .lineLimit(1)
                 } else {
                     Text(thread.isGroup ? thread.memberNamesText : thread.aiProfile.status)
                         .font(.system(size: 12))
@@ -619,18 +635,27 @@ struct ChatConversationScreen: View {
             Button {
                 isCallPresented = true
             } label: {
-                ZStack {
-                    LinearGradient(
-                        colors: [Color(hex: 0xCF43B8), Color(hex: 0xA134EE)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    Text(String(thread.title.prefix(1)).uppercased())
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(.white)
+                if let filename = thread.customAvatarFilename ?? aiWorkspace.fakeHuman(for: thread.id)?.customAvatarFilename,
+                   let img = UIImage(contentsOfFile: MediaStorageService.shared.fileURL(for: filename).path) {
+                    Image(uiImage: img)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 36, height: 36)
+                        .clipShape(Circle())
+                } else {
+                    ZStack {
+                        LinearGradient(
+                            colors: [Color(hex: 0xCF43B8), Color(hex: 0xA134EE)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        Text(String(thread.title.prefix(1)).uppercased())
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+                    .frame(width: 36, height: 36)
+                    .clipShape(Circle())
                 }
-                .frame(width: 36, height: 36)
-                .clipShape(Circle())
             }
         }
         .padding(.horizontal, 12)
@@ -953,6 +978,19 @@ struct ChatConversationScreen: View {
         )
         messages.append(outgoingMessage)
         persistMessages()
+
+        if let human = aiWorkspace.fakeHuman(for: thread.id) {
+            await simulationEngine.handleUserMessage(
+                trimmedDraft,
+                in: thread,
+                human: human,
+                workspace: aiWorkspace,
+                openRouterService: openRouterService
+            )
+            messages = aiWorkspace.messages(for: thread)
+            isSending = false
+            return
+        }
 
         do {
             let reply: String

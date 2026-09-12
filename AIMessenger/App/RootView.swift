@@ -176,6 +176,57 @@ struct RootView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                 settingsPath = [.dataStorage]
             }
+        } else if args.contains("-openFirstFakeHuman") {
+            if let thread = aiWorkspace.threads.first(where: { $0.fakeHumanId != nil }) {
+                selectedTab = .chats
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    chatsPath = [.conversation(thread)]
+                }
+            }
+        } else if args.contains("-simulateHumanOffended") {
+            if let human = aiWorkspace.fakeHumans.first, let thread = aiWorkspace.threads.first(where: { $0.fakeHumanId == human.id }) {
+                selectedTab = .chats
+                chatsPath = [.conversation(thread)]
+                Task {
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    let userMsg = ConversationMessage(
+                        id: UUID().uuidString,
+                        side: .outgoing,
+                        payload: .text("Отвали, ты дура и бесишь меня"),
+                        time: "21:35"
+                    )
+                    aiWorkspace.appendMessage(userMsg, to: thread)
+                    await HumanSimulationEngine.shared.handleUserMessage(
+                        "Отвали, ты дура и бесишь меня",
+                        in: thread,
+                        human: human,
+                        workspace: aiWorkspace,
+                        openRouterService: OpenRouterService()
+                    )
+                }
+            }
+        } else if args.contains("-simulateHumanVoiceAndPhoto") {
+            if let human = aiWorkspace.fakeHumans.first, let thread = aiWorkspace.threads.first(where: { $0.fakeHumanId == human.id }) {
+                selectedTab = .chats
+                chatsPath = [.conversation(thread)]
+                Task {
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    let userMsg = ConversationMessage(
+                        id: UUID().uuidString,
+                        side: .outgoing,
+                        payload: .text("Запиши голосовое, соскучился"),
+                        time: "21:36"
+                    )
+                    aiWorkspace.appendMessage(userMsg, to: thread)
+                    await HumanSimulationEngine.shared.handleUserMessage(
+                        "Запиши голосовое",
+                        in: thread,
+                        human: human,
+                        workspace: aiWorkspace,
+                        openRouterService: OpenRouterService()
+                    )
+                }
+            }
         }
     }
 }

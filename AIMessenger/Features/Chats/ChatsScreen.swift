@@ -10,10 +10,11 @@ struct ChatsScreen: View {
     @State private var activeStory: TelegramStory?
     @State private var isEditingChats = false
     @State private var selectedThreadIds: Set<String> = []
+    @State private var showCreateHumanSheet = false
 
     enum ChatFolder: String, CaseIterable, Identifiable {
         case all = "All Chats"
-        case agents = "AI Agents"
+        case humans = "Персонажи"
         case groups = "Groups"
         case unread = "Unread"
 
@@ -36,9 +37,17 @@ struct ChatsScreen: View {
         }
         .animation(.easeInOut(duration: 0.25), value: isEditingChats)
         .sheet(isPresented: $showNewChatSheet) {
-            NewChatSheet { selectedThread in
-                onOpenThread(selectedThread)
-            }
+            NewChatSheet(
+                onSelectThread: { selectedThread in
+                    onOpenThread(selectedThread)
+                },
+                onOpenCreateHuman: {
+                    showCreateHumanSheet = true
+                }
+            )
+        }
+        .sheet(isPresented: $showCreateHumanSheet) {
+            CreateFakeHumanSheet()
         }
         .fullScreenCover(item: $activeStory) { story in
             TelegramStoryViewer(
@@ -49,6 +58,11 @@ struct ChatsScreen: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
+        .onAppear {
+            if ProcessInfo.processInfo.arguments.contains("-openCreateFakeHuman") {
+                showCreateHumanSheet = true
+            }
+        }
     }
 
     private var filteredThreads: [ChatThreadSummary] {
@@ -57,7 +71,7 @@ struct ChatsScreen: View {
         switch selectedFolder {
         case .all:
             break
-        case .agents:
+        case .humans:
             summaries = summaries.filter { $0.thread.isGroup == false }
         case .groups:
             summaries = summaries.filter { $0.thread.isGroup == true }
@@ -114,13 +128,23 @@ struct ChatsScreen: View {
                     .font(.system(size: 15))
                     .foregroundStyle(TelegramPalette.accentBlue)
                 } else {
-                    Button {
-                        showNewChatSheet = true
-                    } label: {
-                        Image(systemName: "square.and.pencil")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundStyle(.white)
-                            .frame(width: 24, height: 24)
+                    HStack(spacing: 16) {
+                        Button {
+                            showCreateHumanSheet = true
+                        } label: {
+                            Image(systemName: "person.crop.circle.badge.plus")
+                                .font(.system(size: 19, weight: .medium))
+                                .foregroundStyle(TelegramPalette.accentBlue)
+                        }
+
+                        Button {
+                            showNewChatSheet = true
+                        } label: {
+                            Image(systemName: "square.and.pencil")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundStyle(.white)
+                                .frame(width: 24, height: 24)
+                        }
                     }
                 }
             }
@@ -214,7 +238,7 @@ struct ChatsScreen: View {
         case .all:
             let count = threads.filter { $0.badge != nil }.count
             return count > 0 ? count : nil
-        case .agents:
+        case .humans:
             let count = threads.filter { !$0.isGroup && $0.badge != nil }.count
             return count > 0 ? count : nil
         case .groups:
@@ -303,6 +327,65 @@ struct ChatsScreen: View {
 
     private var chatsList: some View {
         List {
+            if aiWorkspace.fakeHumans.isEmpty {
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 12) {
+                            ZStack {
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [Color(hex: 0x2AABEE), Color(hex: 0x229ED9)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .frame(width: 44, height: 44)
+                                Image(systemName: "person.crop.circle.badge.plus")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundStyle(.white)
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Создайте своего Fake Human")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                Text("Чистый холст для ваших персонажей")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(TelegramPalette.mutedText)
+                            }
+                        }
+
+                        Text("Задайте внешность, характер, историю ваших отношений и решите, кто напишет первым. Персонаж будет жить своей жизнью, отвечать с задержкой, слать войсы и менять настроение.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(TelegramPalette.mutedText)
+                            .lineSpacing(2)
+
+                        Button {
+                            showCreateHumanSheet = true
+                        } label: {
+                            HStack {
+                                Spacer()
+                                Text("Создать первого персонажа")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                Spacer()
+                            }
+                            .padding(.vertical, 9)
+                            .background(TelegramPalette.accentBlue)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(14)
+                    .background(TelegramPalette.backgroundElevated)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                }
+            }
+
             if filteredThreads.isEmpty {
                 VStack(spacing: 12) {
                     Spacer().frame(height: 60)
@@ -473,6 +556,7 @@ struct ChatsScreen: View {
 }
 
 private struct ChatRow: View {
+    @EnvironmentObject private var aiWorkspace: AIWorkspace
     let summary: ChatThreadSummary
     let showSeparator: Bool
 
@@ -480,15 +564,22 @@ private struct ChatRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            AvatarView(kind: thread.avatar, showsOnlineDot: thread.online)
+            AvatarView(kind: thread.avatar, showsOnlineDot: thread.online, customImageFilename: thread.customAvatarFilename)
                 .padding(.top, 7)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(thread.title)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .padding(.top, 10)
+                HStack(spacing: 5) {
+                    Text(thread.title)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+
+                    if let human = aiWorkspace.fakeHuman(for: thread.id) {
+                        Text(human.currentMood.emoji)
+                            .font(.system(size: 13))
+                    }
+                }
+                .padding(.top, 10)
 
                 previewBlock
                     .padding(.top, 1)
@@ -598,6 +689,7 @@ struct AvatarView: View {
     let kind: ChatAvatarKind
     let showsOnlineDot: Bool
     var initials: String? = nil
+    var customImageFilename: String? = nil
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -621,7 +713,12 @@ struct AvatarView: View {
 
     @ViewBuilder
     private var content: some View {
-        if let initials = initials, !initials.isEmpty {
+        if let customImageFilename = customImageFilename,
+           let image = UIImage(contentsOfFile: MediaStorageService.shared.fileURL(for: customImageFilename).path) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+        } else if let initials = initials, !initials.isEmpty {
             LinearGradient(
                 colors: [Color(hex: 0xFF9966), Color(hex: 0xFF5E62)],
                 startPoint: .topLeading,
@@ -750,6 +847,7 @@ struct NewChatSheet: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var aiWorkspace: AIWorkspace
     let onSelectThread: (ChatThread) -> Void
+    var onOpenCreateHuman: (() -> Void)? = nil
 
     @State private var searchContactText = ""
 
@@ -768,6 +866,37 @@ struct NewChatSheet: View {
         NavigationStack {
             List {
                 Section {
+                    Button {
+                        dismiss()
+                        onOpenCreateHuman?()
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "person.crop.circle.badge.plus")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundStyle(TelegramPalette.accentBlue)
+                                .frame(width: 44, height: 44)
+                                .background(TelegramPalette.accentBlue.opacity(0.15))
+                                .clipShape(Circle())
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Создать Fake Human")
+                                    .font(.system(size: 17, weight: .medium))
+                                    .foregroundStyle(TelegramPalette.accentBlue)
+
+                                Text("Настроить характер, отношения и кто напишет первым")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(TelegramPalette.mutedText)
+                                    .lineLimit(1)
+                            }
+
+                            Spacer()
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .listRowBackground(TelegramPalette.backgroundElevated)
+                }
+
+                Section {
                     ForEach(filteredContacts) { contact in
                         Button {
                             let thread = aiWorkspace.createOrGetThread(for: contact)
@@ -775,13 +904,24 @@ struct NewChatSheet: View {
                             onSelectThread(thread)
                         } label: {
                             HStack(spacing: 12) {
-                                AvatarView(kind: contact.avatar, showsOnlineDot: contact.presence.isOnline)
-                                    .frame(width: 44, height: 44)
+                                AvatarView(
+                                    kind: contact.avatar,
+                                    showsOnlineDot: contact.presence.isOnline,
+                                    customImageFilename: contact.customAvatarFilename
+                                )
+                                .frame(width: 44, height: 44)
 
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(contact.displayName)
-                                        .font(.system(size: 17, weight: .semibold))
-                                        .foregroundStyle(.white)
+                                    HStack(spacing: 5) {
+                                        Text(contact.displayName)
+                                            .font(.system(size: 17, weight: .semibold))
+                                            .foregroundStyle(.white)
+
+                                        if let mood = contact.mood {
+                                            Text(mood.emoji)
+                                                .font(.system(size: 13))
+                                        }
+                                    }
 
                                     Text(contact.roleTitle)
                                         .font(.system(size: 14))
@@ -800,7 +940,7 @@ struct NewChatSheet: View {
                         .listRowBackground(TelegramPalette.backgroundElevated)
                     }
                 } header: {
-                    Text("AI Agents & Contacts")
+                    Text("Контакты и Fake Humans")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(TelegramPalette.mutedText)
                 }

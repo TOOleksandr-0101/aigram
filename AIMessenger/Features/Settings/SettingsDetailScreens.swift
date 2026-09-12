@@ -178,8 +178,10 @@ struct PrivacySecurityScreen: View {
 
 struct DataStorageScreen: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var aiWorkspace: AIWorkspace
     @State private var cacheSizeString = MediaStorageService.shared.totalCacheSizeString()
     @State private var showClearedAlert = false
+    @State private var showResetCanvasConfirmation = false
     @State private var saveIncomingPhotos = false
     @State private var saveEditedPhotos = true
     @State private var gifsAutoplay = true
@@ -228,6 +230,28 @@ struct DataStorageScreen: View {
                 }
 
                 lightGroup {
+                    sectionTitle("Чистый холст")
+                    Button {
+                        showResetCanvasConfirmation = true
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Начать с чистого листа")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(TelegramPalette.destructiveRed)
+                                Text("Удаляет чужую историю и сбрасывает все чаты к чистому холсту")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(TelegramPalette.settingsSecondaryText)
+                            }
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                lightGroup {
                     sectionTitle("Automatic media download")
                     chevronRow("Using Cellular", value: "Disabled")
                     divider
@@ -262,6 +286,16 @@ struct DataStorageScreen: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text("Local cached media files have been cleared successfully.")
+        }
+        .confirmationDialog("Начать с чистого листа?", isPresented: $showResetCanvasConfirmation, titleVisibility: .visible) {
+            Button("Очистить всё", role: .destructive) {
+                aiWorkspace.resetToCleanCanvas()
+                MediaStorageService.shared.clearMediaCache()
+                cacheSizeString = MediaStorageService.shared.totalCacheSizeString()
+            }
+            Button("Отмена", role: .cancel) { }
+        } message: {
+            Text("Будут удалены все чаты, вызовы и персонажи, останутся только ваши Избранные сообщения.")
         }
     }
 }

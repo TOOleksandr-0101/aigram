@@ -17,7 +17,7 @@ private struct StoredConversationState: Codable {
 
 @MainActor
 final class AIWorkspace: ObservableObject {
-    private static let conversationSchemaVersion = 8
+    private static let conversationSchemaVersion = 9
 
     @Published var displayName: String {
         didSet { defaults.set(displayName, forKey: Keys.displayName) }
@@ -63,6 +63,9 @@ final class AIWorkspace: ObservableObject {
         didSet { defaults.set(selectedWallpaper.rawValue, forKey: Keys.selectedWallpaper) }
     }
 
+    @Published var fakeHumans: [FakeHuman] = [] {
+        didSet { persistFakeHumans() }
+    }
     @Published var threads: [ChatThread] = ChatThread.sampleThreads
     @Published var contacts: [ContactProfile] = ContactProfile.sampleContacts
     @Published var callRecords: [CallRecord] {
@@ -97,11 +100,22 @@ final class AIWorkspace: ObservableObject {
             self.selectedWallpaper = .doodles
         }
         self.callRecords = Self.loadCallRecords(from: defaults)
+        self.fakeHumans = Self.loadFakeHumans(from: defaults)
         if ProcessInfo.processInfo.arguments.contains("-resetStorage") {
             defaults.removeObject(forKey: Keys.storedConversations)
+            defaults.removeObject(forKey: Keys.callRecords)
+            defaults.removeObject(forKey: Keys.fakeHumans)
+            self.fakeHumans = []
+            self.callRecords = []
+        }
+        if ProcessInfo.processInfo.arguments.contains("-seedSampleFakeHuman") {
+            self.fakeHumans = [FakeHuman.samplePresets[0]]
         }
         self.storedConversations = Self.loadStoredConversations(from: defaults)
-        seedThreadsIfNeeded(ChatThread.sampleThreads)
+        if ProcessInfo.processInfo.arguments.contains("-seedSampleFakeHuman") {
+            persistFakeHumans()
+        }
+        syncFakeHumansToWorkspace()
     }
 
     func togglePin(threadId: String) {
@@ -591,6 +605,50 @@ final class AIWorkspace: ObservableObject {
         callRecords.insert(record, at: 0)
     }
 
+    func addFakeHuman(_ human: FakeHuman) {
+        fakeHumans.removeAll { $0.id == human.id }
+        fakeHumans.insert(human, at: 0)
+        persistFakeHumans()
+        syncFakeHumansToWorkspace()
+
+        if human.whoWritesFirst == .humanWritesFirst, let thread = threads.first(where: { $0.id == human.id }) {
+            HumanSimulationEngine.shared.scheduleInitiationIfNeeded(for: human, in: thread, workspace: self)
+        }
+
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    func updateFakeHuman(_ human: FakeHuman) {
+        if let idx = fakeHumans.firstIndex(where: { $0.id == human.id }) {
+            fakeHumans[idx] = human
+            persistFakeHumans()
+            syncFakeHumansToWorkspace()
+        }
+    }
+
+    func deleteFakeHuman(id: String) {
+        fakeHumans.removeAll { $0.id == id }
+        persistFakeHumans()
+        deleteThread(threadId: id)
+        contacts.removeAll { $0.id == id }
+    }
+
+    func fakeHuman(for idOrThreadId: String) -> FakeHuman? {
+        fakeHumans.first { $0.id == idOrThreadId }
+    }
+
+    func resetToCleanCanvas() {
+        fakeHumans = []
+        callRecords = []
+        contacts = []
+        threads = ChatThread.sampleThreads
+        storedConversations = [:]
+        persistStoredConversations()
+        persistCallRecords()
+        persistFakeHumans()
+        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+    }
+
     func addNewAgent(name: String, username: String, role: String, bio: String, avatar: ChatAvatarKind) {
         let cleanId = username.lowercased().replacingOccurrences(of: "@", with: "").replacingOccurrences(of: " ", with: "-")
         let contact = ContactProfile(
@@ -674,7 +732,7 @@ final class AIWorkspace: ObservableObject {
     }
 
     func messages(for thread: ChatThread) -> [ConversationMessage] {
-        if let existing = storedConversations[thread.id]?.messages, existing.isEmpty == false {
+        if let existing = storedConversations[thread.id]?.messages {
             return existing
         }
 
@@ -853,6 +911,71 @@ final class AIWorkspace: ObservableObject {
         }
     }
 
+    private func syncFakeHumansToWorkspace() {
+        var baseThreads = ChatThread.sampleThreads
+        var baseContacts: [ContactProfile] = []
+
+        for human in fakeHumans {
+            let contact = ContactProfile(
+                id: human.id,
+                displayName: human.name,
+                username: human.username,
+                roleTitle: human.relationship.rawValue,
+                bio: human.bio,
+                presence: human.currentMood == .ghosting ? .lastSeen("был(а) недавно") : .online,
+                avatar: human.avatarKind,
+                customAvatarFilename: human.customAvatarFilename,
+                relationshipKind: human.relationship,
+                mood: human.currentMood
+            )
+            baseContacts.append(contact)
+
+            let thread = ChatThread(
+                id: human.id,
+                title: human.name,
+                headline: human.relationship.rawValue,
+                detail: human.currentMood.statusText,
+                time: "now",
+                badge: nil,
+                badgeBright: false,
+                isMuted: false,
+                isPinned: false,
+                online: human.currentMood != .ghosting,
+                revealSide: .none,
+                deliveryState: .none,
+                groupedBackground: false,
+                avatar: human.avatarKind,
+                kind: .direct,
+                customAvatarFilename: human.customAvatarFilename,
+                fakeHumanId: human.id
+            )
+            baseThreads.append(thread)
+        }
+
+        self.contacts = baseContacts
+        self.threads = baseThreads
+        seedThreadsIfNeeded(self.threads)
+
+        for human in fakeHumans {
+            if human.whoWritesFirst == .humanWritesFirst, let thread = self.threads.first(where: { $0.id == human.id }) {
+                HumanSimulationEngine.shared.scheduleInitiationIfNeeded(for: human, in: thread, workspace: self)
+            }
+        }
+    }
+
+    private func persistFakeHumans() {
+        guard let data = try? JSONEncoder().encode(fakeHumans) else { return }
+        defaults.set(data, forKey: Keys.fakeHumans)
+    }
+
+    private static func loadFakeHumans(from defaults: UserDefaults) -> [FakeHuman] {
+        guard let data = defaults.data(forKey: Keys.fakeHumans),
+              let decoded = try? JSONDecoder().decode([FakeHuman].self, from: data) else {
+            return []
+        }
+        return decoded
+    }
+
     private func persistCallRecords() {
         guard let data = try? JSONEncoder().encode(callRecords) else { return }
         defaults.set(data, forKey: Keys.callRecords)
@@ -861,7 +984,7 @@ final class AIWorkspace: ObservableObject {
     private static func loadCallRecords(from defaults: UserDefaults) -> [CallRecord] {
         guard let data = defaults.data(forKey: Keys.callRecords),
               let records = try? JSONDecoder().decode([CallRecord].self, from: data) else {
-            return CallRecord.sampleCalls
+            return []
         }
         return records
     }
@@ -869,19 +992,7 @@ final class AIWorkspace: ObservableObject {
     private func seedDate(for thread: ChatThread) -> Date {
         let calendar = Calendar.current
         let now = Date()
-
-        switch thread.id {
-        case "ai-assistant":
-            return calendar.date(byAdding: .minute, value: -15, to: now) ?? now
-        case "code-partner":
-            return calendar.date(byAdding: .day, value: -1, to: now) ?? now
-        case "research-desk":
-            return calendar.date(byAdding: .day, value: -2, to: now) ?? now
-        case "design-scout":
-            return calendar.date(byAdding: .day, value: -3, to: now) ?? now
-        default:
-            return now
-        }
+        return now
     }
 }
 
@@ -900,4 +1011,5 @@ private enum Keys {
     static let conversationSchemaVersion = "aiworkspace.conversations.schemaVersion"
     static let selectedWallpaper = "aiworkspace.chat.selectedWallpaper"
     static let callRecords = "aiworkspace.calls.records"
+    static let fakeHumans = "aiworkspace.fake_humans.list"
 }
